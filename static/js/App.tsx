@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 
 interface StaleContent {
@@ -24,10 +24,15 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  const fetchStaleContent = async () => {
+  useEffect(() => {
+    // Load cached data on initial render
+    fetchStaleContent(false);
+  }, []);
+
+  const fetchStaleContent = async (forceRefresh: boolean = false) => {
     setIsLoading(true);
     try {
-      const response = await fetch('/get_stale_content?force_refresh=true');
+      const response = await fetch(`/get_stale_content?force_refresh=${forceRefresh}`);
       const data: CachedData = await response.json();
       setStaleContent(data.content);
       setLastUpdated(data.timestamp);
@@ -75,7 +80,7 @@ function App() {
     <div className="staleflix-container">
       <h1 className="staleflix-header">StaleFlix</h1>
       <button 
-        onClick={fetchStaleContent} 
+        onClick={() => fetchStaleContent(true)} 
         className="btn staleflix-button btn-lg mb-4"
         disabled={isLoading}
       >
