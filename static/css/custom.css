@@ -1,0 +1,75 @@
+:root {
+    --primary-color: #3498db;
+    --secondary-color: #2ecc71;
+    --background-color: #f0f3f5;
+    --text-color: #34495e;
+    --header-color: #2c3e50;
+  }
+  
+  body {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    font-family: 'Roboto', sans-serif;
+  }
+  
+  .staleflix-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+  
+  .staleflix-header {
+    color: var(--header-color);
+    font-weight: 700;
+    margin-bottom: 2rem;
+  }
+  
+  .staleflix-button {
+    background-color: var(--primary-color);
+    border: none;
+    transition: background-color 0.3s ease;
+  }
+  
+  .staleflix-button:hover {
+    background-color: #2980b9;
+  }
+  
+  .staleflix-submit-button {
+    background-color: var(--secondary-color);
+    border: none;
+    transition: background-color 0.3s ease;
+  }
+  
+  .staleflix-submit-button:hover {
+    background-color: #27ae60;
+  }
+  
+  .staleflix-table {
+    background-color: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .staleflix-table th {
+    background-color: var(--primary-color);
+    color: white;
+  }
+  
+  .staleflix-table tr:nth-child(even) {
+    background-color: #f8f9fa;
+  }
+  
+  .staleflix-table tr:hover {
+    background-color: #e9ecef;
+  }
+  
+  @media (max-width: 768px) {
+    .staleflix-container {
+      padding: 1rem;
+    }
+    
+    .staleflix-table {
+      font-size: 0.9rem;
+    }
+  }

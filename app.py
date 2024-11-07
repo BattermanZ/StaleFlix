@@ -6,8 +6,10 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from fuzzywuzzy import fuzz
 import logging
+import json
 
 app = Flask(__name__)
+app.config['JSON_AS_ASCII'] = False  # Ensure JSON responses use UTF-8
 
 # Set up logging
 logging.basicConfig(filename='staleflix.log', level=logging.INFO, 
@@ -26,10 +28,14 @@ SONARR_API_URL = os.getenv('SONARR_API_URL')
 SONARR_API_KEY = os.getenv('SONARR_API_KEY')
 STALE_MONTHS = int(os.getenv('STALE_MONTHS', 3))  # Default to 3 months if not set
 
+# File to store the cached results
+CACHE_FILE = 'stale_content_cache.json'
+
 def get_plex_headers():
     return {
         'X-Plex-Token': PLEX_TOKEN,
-        'Accept': 'application/xml'
+        'Accept': 'application/xml',
+        'Accept-Charset': 'utf-8'  # Add explicit charset
     }
 
 def get_overseerr_headers():
@@ -105,7 +111,7 @@ def fetch_plex_content(requester_mapping, radarr_movies, sonarr_series):
 
             # Include 'show' type for both TV Shows and Anime
             if library_type in ['movie', 'show']:
-                logging.info(f"\nFetching content for library: {library_title} (Type: {library_type})")
+                logging.info(f"Fetching content for library: {library_title} (Type: {library_type})")
 
                 # Fetch all items in the library
                 items_response = requests.get(f"{PLEX_URL}/library/sections/{library_key}/all", headers=get_plex_headers())
@@ -127,7 +133,16 @@ def fetch_plex_content(requester_mapping, radarr_movies, sonarr_series):
 
 def process_item(item, library_type, users, requester_mapping, radarr_movies, sonarr_series):
     title = item.get('title', 'Unknown Title')
-    original_title = item.get('originalTitle')
+    original_title = item.get('originalTitle', title)
+    
+    # Ensure proper UTF-8 encoding
+    try:
+        title = title.encode('latin1').decode('utf-8') if isinstance(title, str) else title
+        original_title = original_title.encode('latin1').decode('utf-8') if isinstance(original_title, str) else original_title
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        # If the above fails, the string might already be in UTF-8
+        pass
+
     added_at = datetime.fromtimestamp(int(item.get('addedAt', 0)))
     plex_id = item.get('ratingKey')
 
@@ -230,6 +245,16 @@ def check_if_stale(watch_status, library_type, added_at):
 
     return True
 
+def save_cache(data):
+    with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False)
+
+def load_cache():
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return None
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -240,6 +265,13 @@ def send_static(path):
 
 @app.route('/get_stale_content', methods=['GET'])
 def get_stale_content():
+    force_refresh = request.args.get('force_refresh', 'false').lower() == 'true'
+    
+    if not force_refresh:
+        cached_data = load_cache()
+        if cached_data:
+            return jsonify(cached_data)
+    
     logging.info("Fetching stale content...")
     overseerr_requests = fetch_overseerr_requests()
     requester_mapping = create_requester_mapping(overseerr_requests)
@@ -248,7 +280,14 @@ def get_stale_content():
     
     stale_content = fetch_plex_content(requester_mapping, radarr_movies, sonarr_series)
     
-    return jsonify(stale_content)
+    data_with_timestamp = {
+        'timestamp': datetime.now().isoformat(),
+        'content': stale_content
+    }
+    
+    save_cache(data_with_timestamp)
+    
+    return jsonify(data_with_timestamp)
 
 @app.route('/submit_selection', methods=['POST'])
 def submit_selection():

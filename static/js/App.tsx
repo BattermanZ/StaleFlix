@@ -2,24 +2,35 @@ import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 
 interface StaleContent {
+  plex_id: string;
   title: string;
+  original_title: string;
   type: string;
   added_at: string;
   requester: string;
   size: string;
+  watch_status: { [key: string]: string };
+  total_episodes?: number;
+}
+
+interface CachedData {
+  timestamp: string;
+  content: StaleContent[];
 }
 
 function App() {
   const [staleContent, setStaleContent] = useState<StaleContent[]>([]);
   const [selectedItems, setSelectedItems] = useState<{[key: string]: boolean}>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const fetchStaleContent = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/get_stale_content');
-      const data = await response.json();
-      setStaleContent(data);
+      const response = await fetch('/get_stale_content?force_refresh=true');
+      const data: CachedData = await response.json();
+      setStaleContent(data.content);
+      setLastUpdated(data.timestamp);
     } catch (error) {
       console.error('Error fetching stale content:', error);
     } finally {
@@ -30,27 +41,27 @@ function App() {
   const handleSelectAll = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newSelectedItems: {[key: string]: boolean} = {};
     staleContent.forEach(item => {
-      newSelectedItems[item.title] = event.target.checked;
+      newSelectedItems[item.plex_id] = event.target.checked;
     });
     setSelectedItems(newSelectedItems);
   };
 
-  const handleItemSelect = (title: string) => {
+  const handleItemSelect = (plex_id: string) => {
     setSelectedItems(prev => ({
       ...prev,
-      [title]: !prev[title]
+      [plex_id]: !prev[plex_id]
     }));
   };
 
   const handleSubmit = async () => {
-    const selectedTitles = Object.keys(selectedItems).filter(title => selectedItems[title]);
+    const selectedIds = Object.keys(selectedItems).filter(id => selectedItems[id]);
     try {
       const response = await fetch('/submit_selection', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ selected_items: selectedTitles }),
+        body: JSON.stringify({ selected_items: selectedIds }),
       });
       const result = await response.json();
       alert(result.message);
@@ -61,62 +72,117 @@ function App() {
   };
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Stale Content Selector</h1>
+    <div className="staleflix-container">
+      <h1 className="staleflix-header">StaleFlix</h1>
       <button 
         onClick={fetchStaleContent} 
-        className="mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        className="btn staleflix-button btn-lg mb-4"
         disabled={isLoading}
       >
-        {isLoading ? 'Loading...' : 'Fetch Stale Content'}
+        {isLoading ? (
+          <>
+            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            Loading...
+          </>
+        ) : 'Fetch Stale Content'}
       </button>
-      {isLoading && <p>Loading stale content...</p>}
-      {!isLoading && staleContent.length === 0 && <p>No stale content found. Click the button above to fetch stale content.</p>}
+
+      {lastUpdated && (
+        <div className="alert alert-info" role="alert">
+          Last updated: {new Date(lastUpdated).toLocaleString()}
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="alert alert-info" role="alert">
+          <div className="d-flex align-items-center">
+            <div className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+            Loading stale content...
+          </div>
+        </div>
+      )}
+
+      {!isLoading && staleContent.length === 0 && (
+        <div className="alert alert-warning" role="alert">
+          No stale content found. Click the button above to fetch stale content.
+        </div>
+      )}
+
       {!isLoading && staleContent.length > 0 && (
-        <>
-          <table className="min-w-full bg-white border border-gray-300">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border-b p-2">
-                  <input
-                    type="checkbox"
-                    onChange={handleSelectAll}
-                    checked={Object.values(selectedItems).every(Boolean) && staleContent.length > 0}
-                  />
-                </th>
-                <th className="border-b p-2">Title</th>
-                <th className="border-b p-2">Type</th>
-                <th className="border-b p-2">Added Date</th>
-                <th className="border-b p-2">Requester</th>
-                <th className="border-b p-2">Size</th>
-              </tr>
-            </thead>
-            <tbody>
-              {staleContent.map(item => (
-                <tr key={item.title} className="hover:bg-gray-50">
-                  <td className="border-b p-2">
-                    <input
-                      type="checkbox"
-                      checked={selectedItems[item.title] || false}
-                      onChange={() => handleItemSelect(item.title)}
-                    />
-                  </td>
-                  <td className="border-b p-2">{item.title}</td>
-                  <td className="border-b p-2">{item.type}</td>
-                  <td className="border-b p-2">{item.added_at}</td>
-                  <td className="border-b p-2">{item.requester}</td>
-                  <td className="border-b p-2">{item.size}</td>
+        <div className="staleflix-table">
+          <div className="table-responsive">
+            <table className="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th style={{width: '40px'}}>
+                    <div className="form-check">
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        onChange={handleSelectAll}
+                        checked={Object.values(selectedItems).every(Boolean) && staleContent.length > 0}
+                      />
+                    </div>
+                  </th>
+                  <th>Title</th>
+                  <th style={{width: '100px'}}>Type</th>
+                  <th style={{width: '120px'}}>Added Date</th>
+                  <th style={{width: '120px'}}>Requester</th>
+                  <th style={{width: '100px'}}>Size</th>
+                  <th style={{width: '200px'}}>Watch Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <button 
-            onClick={handleSubmit} 
-            className="mt-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-          >
-            Submit Selection
-          </button>
-        </>
+              </thead>
+              <tbody>
+                {staleContent.map(item => (
+                  <tr key={item.plex_id}>
+                    <td>
+                      <div className="form-check">
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          checked={selectedItems[item.plex_id] || false}
+                          onChange={() => handleItemSelect(item.plex_id)}
+                        />
+                      </div>
+                    </td>
+                    <td>{item.title || item.original_title}</td>
+                    <td><span className="badge bg-secondary">{item.type}</span></td>
+                    <td>{item.added_at}</td>
+                    <td>
+                      {item.requester === "Unknown" ? (
+                        <span className="badge bg-warning text-dark">Unknown</span>
+                      ) : (
+                        item.requester
+                      )}
+                    </td>
+                    <td>
+                      {item.size === "Unknown" ? (
+                        <span className="badge bg-warning text-dark">Unknown</span>
+                      ) : (
+                        <span className="badge bg-info text-dark">{item.size} GB</span>
+                      )}
+                    </td>
+                    <td>
+                      {Object.entries(item.watch_status).map(([user, status]) => (
+                        <div key={user}>
+                          {user}: {status}
+                        </div>
+                      ))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="p-3">
+            <button 
+              onClick={handleSubmit} 
+              className="btn staleflix-submit-button"
+            >
+              Submit Selection
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
