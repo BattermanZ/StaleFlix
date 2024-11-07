@@ -1,33 +1,27 @@
-# Ignore Python virtual environment
-venv/
-
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Ignore environment variables
+venv/
 .env
 
-# Ignore logs
-logs.txt
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+static/js/bundle.js
+static/js/bundle.js.LICENSE.txt
+
+# Logs
 *.log
+staleflix.log
 
-# Ignore database
-*.sqlite3
-
-# Ignore Docker image layers
-.Dockerfile.swp
-
-# Ignore local config files
-.DS_Store
-
-# Ignore Pytest cache
-.pytest_cache/
-
-# Ignore other unwanted files
-.idea/
+# IDE specific files
 .vscode/
-
-# ignore docker image
-*.tar
+.idea/
+*.swp
+*.swo
+.DS_Store
