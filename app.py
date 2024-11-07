@@ -7,15 +7,14 @@ from dotenv import load_dotenv
 from fuzzywuzzy import fuzz
 import logging
 import json
+import hashlib
 
 app = Flask(__name__)
-app.config['JSON_AS_ASCII'] = False  # Ensure JSON responses use UTF-8
+app.config['JSON_AS_ASCII'] = False
 
-# Set up logging
 logging.basicConfig(filename='staleflix.log', level=logging.INFO, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Load environment variables
 load_dotenv()
 
 PLEX_URL = os.getenv('PLEX_URL')
@@ -26,16 +25,15 @@ RADARR_API_URL = os.getenv('RADARR_API_URL')
 RADARR_API_KEY = os.getenv('RADARR_API_KEY')
 SONARR_API_URL = os.getenv('SONARR_API_URL')
 SONARR_API_KEY = os.getenv('SONARR_API_KEY')
-STALE_MONTHS = int(os.getenv('STALE_MONTHS', 3))  # Default to 3 months if not set
+STALE_MONTHS = int(os.getenv('STALE_MONTHS', 3))
 
-# File to store the cached results
 CACHE_FILE = 'stale_content_cache.json'
 
 def get_plex_headers():
     return {
         'X-Plex-Token': PLEX_TOKEN,
         'Accept': 'application/xml',
-        'Accept-Charset': 'utf-8'  # Add explicit charset
+        'Accept-Charset': 'utf-8'
     }
 
 def get_overseerr_headers():
@@ -93,13 +91,11 @@ def fetch_sonarr_series():
 def fetch_plex_content(requester_mapping, radarr_movies, sonarr_series):
     stale_content = []
     try:
-        # Fetch all accounts
         accounts_response = requests.get(f"{PLEX_URL}/accounts", headers=get_plex_headers())
         accounts_response.raise_for_status()
         accounts_root = ET.fromstring(accounts_response.content)
         users = {account.get('id'): account.get('name') for account in accounts_root.findall('Account')}
 
-        # Fetch all libraries
         libraries_response = requests.get(f"{PLEX_URL}/library/sections", headers=get_plex_headers())
         libraries_response.raise_for_status()
         libraries_root = ET.fromstring(libraries_response.content)
@@ -109,11 +105,9 @@ def fetch_plex_content(requester_mapping, radarr_movies, sonarr_series):
             library_title = directory.get('title')
             library_type = directory.get('type')
 
-            # Include 'show' type for both TV Shows and Anime
             if library_type in ['movie', 'show']:
                 logging.info(f"Fetching content for library: {library_title} (Type: {library_type})")
 
-                # Fetch all items in the library
                 items_response = requests.get(f"{PLEX_URL}/library/sections/{library_key}/all", headers=get_plex_headers())
                 items_response.raise_for_status()
                 items_root = ET.fromstring(items_response.content)
@@ -135,12 +129,10 @@ def process_item(item, library_type, users, requester_mapping, radarr_movies, so
     title = item.get('title', 'Unknown Title')
     original_title = item.get('originalTitle', title)
     
-    # Ensure proper UTF-8 encoding
     try:
         title = title.encode('latin1').decode('utf-8') if isinstance(title, str) else title
         original_title = original_title.encode('latin1').decode('utf-8') if isinstance(original_title, str) else original_title
     except (UnicodeEncodeError, UnicodeDecodeError):
-        # If the above fails, the string might already be in UTF-8
         pass
 
     added_at = datetime.fromtimestamp(int(item.get('addedAt', 0)))
@@ -152,7 +144,6 @@ def process_item(item, library_type, users, requester_mapping, radarr_movies, so
     else:
         watch_status = fetch_movie_watch_status(plex_id, users)
 
-    # Check if content is stale
     is_stale = check_if_stale(watch_status, library_type, added_at)
 
     if is_stale:
@@ -168,7 +159,8 @@ def process_item(item, library_type, users, requester_mapping, radarr_movies, so
             "requester": requester,
             "size": f"{size:.2f}" if size else "Unknown",
             "watch_status": watch_status,
-            "total_episodes": leaf_count if library_type == 'show' else None
+            "total_episodes": leaf_count if library_type == 'show' else None,
+            "requester_watched": check_requester_watched(requester, watch_status)
         }
     
     return None
@@ -177,11 +169,11 @@ def get_content_size(title, library_type, radarr_movies, sonarr_series):
     if library_type == 'movie':
         matched_movie = find_best_match(title, radarr_movies)
         if matched_movie:
-            return matched_movie['sizeOnDisk'] / (1024 * 1024 * 1024)  # Convert to GB
-    else:  # TV Show
+            return matched_movie['sizeOnDisk'] / (1024 * 1024 * 1024)
+    else:
         matched_series = find_best_match(title, sonarr_series)
         if matched_series:
-            return matched_series['statistics']['sizeOnDisk'] / (1024 * 1024 * 1024)  # Convert to GB
+            return matched_series['statistics']['sizeOnDisk'] / (1024 * 1024 * 1024)
     return None
 
 def find_best_match(title, items):
@@ -227,7 +219,6 @@ def fetch_movie_watch_status(movie_key, users):
 
 def check_if_stale(watch_status, library_type, added_at):
     if not watch_status:
-        # If no one has watched it, check if it's been added more than STALE_MONTHS ago
         return (datetime.now() - added_at) > timedelta(days=30 * STALE_MONTHS)
 
     current_time = datetime.now()
@@ -235,15 +226,19 @@ def check_if_stale(watch_status, library_type, added_at):
 
     for status in watch_status.values():
         if library_type == 'show':
-            # For shows, we consider it not stale if any progress has been made in the last X months
             if status != "0.00%":
                 return False
         else:
-            # For movies, we consider it not stale if it has been watched in the last X months
             if status == "Watched":
                 return False
 
     return True
+
+def check_requester_watched(requester, watch_status):
+    return requester in watch_status and (
+        watch_status[requester] == "Watched" or 
+        (isinstance(watch_status[requester], str) and watch_status[requester].endswith("%") and float(watch_status[requester][:-1]) > 0)
+    )
 
 def save_cache(data):
     with open(CACHE_FILE, 'w', encoding='utf-8') as f:
@@ -292,8 +287,6 @@ def get_stale_content():
 @app.route('/submit_selection', methods=['POST'])
 def submit_selection():
     selected_items = request.json.get('selected_items', [])
-    # Process the selected items (e.g., save to database, prepare for n8n)
-    # For now, we'll just log the selected items
     logging.info(f"Selected items: {selected_items}")
     return jsonify({"status": "success", "message": "Selection submitted successfully"})
 

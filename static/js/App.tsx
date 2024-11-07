@@ -11,6 +11,7 @@ interface StaleContent {
   size: string;
   watch_status: { [key: string]: string };
   total_episodes?: number;
+  requester_watched: boolean;
 }
 
 interface CachedData {
@@ -23,9 +24,9 @@ function App() {
   const [selectedItems, setSelectedItems] = useState<{[key: string]: boolean}>({});
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [sortConfig, setSortConfig] = useState<{ key: keyof StaleContent; direction: 'ascending' | 'descending' } | null>(null);
 
   useEffect(() => {
-    // Load cached data on initial render
     fetchStaleContent(false);
   }, []);
 
@@ -74,6 +75,37 @@ function App() {
       console.error('Error submitting selection:', error);
       alert('Failed to submit selection. Please try again.');
     }
+  };
+
+  const handleSort = (key: keyof StaleContent) => {
+    let direction: 'ascending' | 'descending' = 'ascending';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const sortedContent = React.useMemo(() => {
+    let sortableItems = [...staleContent];
+    if (sortConfig !== null) {
+      sortableItems.sort((a, b) => {
+        if (a[sortConfig.key] < b[sortConfig.key]) {
+          return sortConfig.direction === 'ascending' ? -1 : 1;
+        }
+        if (a[sortConfig.key] > b[sortConfig.key]) {
+          return sortConfig.direction === 'ascending' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [staleContent, sortConfig]);
+
+  const getRequesterColor = (requester: string) => {
+    const hash = requester.split('').reduce((acc, char) => {
+      return char.charCodeAt(0) + ((acc << 5) - acc);
+    }, 0);
+    return `hsl(${hash % 360}, 70%, 80%)`;
   };
 
   return (
@@ -129,16 +161,16 @@ function App() {
                       />
                     </div>
                   </th>
-                  <th>Title</th>
-                  <th style={{width: '100px'}}>Type</th>
-                  <th style={{width: '120px'}}>Added Date</th>
-                  <th style={{width: '120px'}}>Requester</th>
-                  <th style={{width: '100px'}}>Size</th>
+                  <th onClick={() => handleSort('title')}>Title {sortConfig?.key === 'title' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}</th>
+                  <th onClick={() => handleSort('type')} style={{width: '100px'}}>Type {sortConfig?.key === 'type' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}</th>
+                  <th onClick={() => handleSort('added_at')} style={{width: '120px'}}>Added Date {sortConfig?.key === 'added_at' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}</th>
+                  <th onClick={() => handleSort('requester')} style={{width: '120px'}}>Requester {sortConfig?.key === 'requester' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}</th>
+                  <th onClick={() => handleSort('size')} style={{width: '100px'}}>Size {sortConfig?.key === 'size' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}</th>
                   <th style={{width: '200px'}}>Watch Status</th>
                 </tr>
               </thead>
               <tbody>
-                {staleContent.map(item => (
+                {sortedContent.map(item => (
                   <tr key={item.plex_id}>
                     <td>
                       <div className="form-check">
@@ -150,15 +182,23 @@ function App() {
                         />
                       </div>
                     </td>
-                    <td>{item.title || item.original_title}</td>
-                    <td><span className="badge bg-secondary">{item.type}</span></td>
+                    <td>
+                      {item.title}
+                      {item.original_title && item.original_title !== item.title && ` [${item.original_title}]`}
+                    </td>
+                    <td>
+                      <span className={`badge ${item.type === 'movie' ? 'bg-secondary' : 'bg-primary'}`}>
+                        {item.type}
+                      </span>
+                    </td>
                     <td>{item.added_at}</td>
                     <td>
-                      {item.requester === "Unknown" ? (
-                        <span className="badge bg-warning text-dark">Unknown</span>
-                      ) : (
-                        item.requester
-                      )}
+                      <span 
+                        className="badge" 
+                        style={{backgroundColor: getRequesterColor(item.requester)}}
+                      >
+                        {item.requester} {item.requester_watched && '☑'}
+                      </span>
                     </td>
                     <td>
                       {item.size === "Unknown" ? (
@@ -193,4 +233,5 @@ function App() {
   );
 }
 
+// Render the App component
 ReactDOM.render(<App />, document.getElementById('root'));
