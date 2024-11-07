@@ -25,6 +25,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof StaleContent; direction: 'ascending' | 'descending' } | null>(null);
+  const [isPushing, setIsPushing] = useState(false);
 
   useEffect(() => {
     fetchStaleContent(false);
@@ -59,24 +60,6 @@ function App() {
     }));
   };
 
-  const handleSubmit = async () => {
-    const selectedIds = Object.keys(selectedItems).filter(id => selectedItems[id]);
-    try {
-      const response = await fetch('/submit_selection', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ selected_items: selectedIds }),
-      });
-      const result = await response.json();
-      alert(result.message);
-    } catch (error) {
-      console.error('Error submitting selection:', error);
-      alert('Failed to submit selection. Please try again.');
-    }
-  };
-
   const handleSort = (key: keyof StaleContent) => {
     let direction: 'ascending' | 'descending' = 'ascending';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -106,6 +89,29 @@ function App() {
       return char.charCodeAt(0) + ((acc << 5) - acc);
     }, 0);
     return `hsl(${hash % 360}, 70%, 80%)`;
+  };
+
+  const pushSelectedToN8n = async () => {
+    const selectedIds = Object.keys(selectedItems).filter(id => selectedItems[id]);
+    const selectedContent = staleContent.filter(item => selectedIds.includes(item.plex_id));
+    
+    setIsPushing(true);
+    try {
+      const response = await fetch('/push_to_n8n', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ selected_content: selectedContent }),
+      });
+      const result = await response.json();
+      alert(result.message);
+    } catch (error) {
+      console.error('Error pushing to n8n:', error);
+      alert('Failed to push data to n8n. Please try again.');
+    } finally {
+      setIsPushing(false);
+    }
   };
 
   return (
@@ -221,10 +227,16 @@ function App() {
           </div>
           <div className="p-3">
             <button 
-              onClick={handleSubmit} 
+              onClick={pushSelectedToN8n} 
               className="btn staleflix-submit-button"
+              disabled={isPushing || Object.values(selectedItems).filter(Boolean).length === 0}
             >
-              Submit Selection
+              {isPushing ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                  Pushing to n8n...
+                </>
+              ) : 'Push Selected to n8n'}
             </button>
           </div>
         </div>
@@ -233,5 +245,4 @@ function App() {
   );
 }
 
-// Render the App component
 ReactDOM.render(<App />, document.getElementById('root'));

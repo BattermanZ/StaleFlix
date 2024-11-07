@@ -7,14 +7,19 @@ from dotenv import load_dotenv
 from fuzzywuzzy import fuzz
 import logging
 import json
-import hashlib
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
-logging.basicConfig(filename='staleflix.log', level=logging.INFO, 
+# Ensure logs directory exists
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
+# Set up logging
+logging.basicConfig(filename='logs/staleflix.log', level=logging.INFO, 
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Load environment variables
 load_dotenv()
 
 PLEX_URL = os.getenv('PLEX_URL')
@@ -26,6 +31,8 @@ RADARR_API_KEY = os.getenv('RADARR_API_KEY')
 SONARR_API_URL = os.getenv('SONARR_API_URL')
 SONARR_API_KEY = os.getenv('SONARR_API_KEY')
 STALE_MONTHS = int(os.getenv('STALE_MONTHS', 3))
+N8N_WEBHOOK_URL = os.getenv('N8N_WEBHOOK_URL')
+API_KEY = os.getenv('N8N_API_KEY', 'staleflix-secret-key-123')  # Use the same key you set in n8n
 
 CACHE_FILE = 'stale_content_cache.json'
 
@@ -284,11 +291,37 @@ def get_stale_content():
     
     return jsonify(data_with_timestamp)
 
-@app.route('/submit_selection', methods=['POST'])
-def submit_selection():
-    selected_items = request.json.get('selected_items', [])
-    logging.info(f"Selected items: {selected_items}")
-    return jsonify({"status": "success", "message": "Selection submitted successfully"})
+@app.route('/push_to_n8n', methods=['POST'])
+def push_to_n8n():
+    try:
+        # Add headers to the n8n request
+        headers = {
+            'Content-Type': 'application/json',
+            'X-API-Key': API_KEY
+        }
+        
+        selected_content = request.json.get('selected_content', [])
+        
+        if not selected_content:
+            return jsonify({"error": "No content selected"}), 400
+
+        # Prepare data for n8n
+        n8n_data = {
+            "stale_content": selected_content,
+            "timestamp": datetime.now().isoformat()
+        }
+
+        # Send data to n8n webhook with headers
+        response = requests.post(N8N_WEBHOOK_URL, json=n8n_data, headers=headers)
+        response.raise_for_status()
+
+        return jsonify({"message": "Data successfully pushed to n8n"}), 200
+    except requests.RequestException as e:
+        logging.error(f"Error pushing data to n8n: {str(e)}")
+        return jsonify({"error": "Failed to push data to n8n"}), 500
+    except Exception as e:
+        logging.error(f"Unexpected error in push_to_n8n: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=9999, host='0.0.0.0')
