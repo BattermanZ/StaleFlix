@@ -32,7 +32,7 @@ SONARR_API_URL = os.getenv('SONARR_API_URL')
 SONARR_API_KEY = os.getenv('SONARR_API_KEY')
 STALE_MONTHS = int(os.getenv('STALE_MONTHS', 3))
 N8N_WEBHOOK_URL = os.getenv('N8N_WEBHOOK_URL')
-API_KEY = os.getenv('N8N_API_KEY', 'staleflix-secret-key-123')  # Use the same key you set in n8n
+API_KEY = os.getenv('N8N_API_KEY')
 
 CACHE_FILE = 'stale_content_cache.json'
 
@@ -132,6 +132,23 @@ def fetch_plex_content(requester_mapping, radarr_movies, sonarr_series):
 
     return stale_content
 
+def check_if_stale(watch_status, library_type, added_at):
+    if not watch_status:
+        return (datetime.now() - added_at) > timedelta(days=30 * STALE_MONTHS)
+
+    current_time = datetime.now()
+    stale_threshold = current_time - timedelta(days=30 * STALE_MONTHS)
+
+    for status in watch_status.values():
+        if library_type == 'show':
+            if status != "0.00%":
+                return False
+        else:
+            if status == "Watched":
+                return False
+
+    return added_at < stale_threshold
+
 def process_item(item, library_type, users, requester_mapping, radarr_movies, sonarr_series):
     title = item.get('title', 'Unknown Title')
     original_title = item.get('originalTitle', title)
@@ -156,6 +173,7 @@ def process_item(item, library_type, users, requester_mapping, radarr_movies, so
     if is_stale:
         requester = requester_mapping.get(plex_id, "Unknown")
         size = get_content_size(title, library_type, radarr_movies, sonarr_series)
+        poster_url = f"{PLEX_URL}{item.get('thumb')}?X-Plex-Token={PLEX_TOKEN}"
         
         return {
             "title": title,
@@ -164,10 +182,11 @@ def process_item(item, library_type, users, requester_mapping, radarr_movies, so
             "added_at": added_at.strftime('%Y-%m-%d'),
             "plex_id": plex_id,
             "requester": requester,
-            "size": f"{size:.2f}" if size else "Unknown",
+            "size": f"{size:.2f}" if size is not None else "0",
             "watch_status": watch_status,
             "total_episodes": leaf_count if library_type == 'show' else None,
-            "requester_watched": check_requester_watched(requester, watch_status)
+            "requester_watched": check_requester_watched(requester, watch_status),
+            "poster_url": poster_url
         }
     
     return None
@@ -294,7 +313,6 @@ def get_stale_content():
 @app.route('/push_to_n8n', methods=['POST'])
 def push_to_n8n():
     try:
-        # Add headers to the n8n request
         headers = {
             'Content-Type': 'application/json',
             'X-API-Key': API_KEY
@@ -305,13 +323,14 @@ def push_to_n8n():
         if not selected_content:
             return jsonify({"error": "No content selected"}), 400
 
-        # Prepare data for n8n
+        total_space_saved = sum(float(item['size']) for item in selected_content if item['size'] != "Unknown")
+
         n8n_data = {
             "stale_content": selected_content,
+            "total_space_saved": f"{total_space_saved:.2f}",
             "timestamp": datetime.now().isoformat()
         }
 
-        # Send data to n8n webhook with headers
         response = requests.post(N8N_WEBHOOK_URL, json=n8n_data, headers=headers)
         response.raise_for_status()
 

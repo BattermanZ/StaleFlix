@@ -12,6 +12,7 @@ interface StaleContent {
   watch_status: { [key: string]: string };
   total_episodes?: number;
   requester_watched: boolean;
+  poster_url: string;
 }
 
 interface CachedData {
@@ -26,10 +27,15 @@ function App() {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof StaleContent; direction: 'ascending' | 'descending' } | null>(null);
   const [isPushing, setIsPushing] = useState(false);
+  const [totalSpaceSaved, setTotalSpaceSaved] = useState<number>(0);
 
   useEffect(() => {
     fetchStaleContent(false);
   }, []);
+
+  useEffect(() => {
+    calculateTotalSpaceSaved();
+  }, [selectedItems, staleContent]);
 
   const fetchStaleContent = async (forceRefresh: boolean = false) => {
     setIsLoading(true);
@@ -91,10 +97,33 @@ function App() {
     return `hsl(${hash % 360}, 70%, 80%)`;
   };
 
+  const calculateTotalSpaceSaved = () => {
+    const totalSpace = staleContent
+      .filter(item => selectedItems[item.plex_id])
+      .reduce((total, item) => {
+        const size = parseFloat(item.size);
+        return isNaN(size) ? total : total + size;
+      }, 0);
+    setTotalSpaceSaved(totalSpace);
+  };
+
   const pushSelectedToN8n = async () => {
     const selectedIds = Object.keys(selectedItems).filter(id => selectedItems[id]);
-    const selectedContent = staleContent.filter(item => selectedIds.includes(item.plex_id));
-    
+    const selectedContent = staleContent
+      .filter(item => selectedIds.includes(item.plex_id))
+      .map(({ plex_id, title, type, added_at, requester, size, watch_status, total_episodes, requester_watched, poster_url }) => ({
+        plex_id,
+        title,
+        type,
+        added_at,
+        requester,
+        size,
+        watch_status,
+        total_episodes,
+        requester_watched,
+        poster_url
+      }));
+
     setIsPushing(true);
     try {
       const response = await fetch('/push_to_n8n', {
@@ -167,6 +196,7 @@ function App() {
                       />
                     </div>
                   </th>
+                  <th style={{width: '100px'}}>Poster</th>
                   <th onClick={() => handleSort('title')}>Title {sortConfig?.key === 'title' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}</th>
                   <th onClick={() => handleSort('type')} style={{width: '100px'}}>Type {sortConfig?.key === 'type' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}</th>
                   <th onClick={() => handleSort('added_at')} style={{width: '120px'}}>Added Date {sortConfig?.key === 'added_at' && (sortConfig.direction === 'ascending' ? '↑' : '↓')}</th>
@@ -187,6 +217,9 @@ function App() {
                           onChange={() => handleItemSelect(item.plex_id)}
                         />
                       </div>
+                    </td>
+                    <td>
+                      <img src={item.poster_url} alt={`Poster for ${item.title}`} className="img-thumbnail" style={{maxWidth: '75px'}} />
                     </td>
                     <td>
                       {item.title}
@@ -225,7 +258,11 @@ function App() {
               </tbody>
             </table>
           </div>
-          <div className="p-3">
+          <div className="p-3 d-flex justify-content-between align-items-center">
+            <div>
+              <strong>Total Space Saved: </strong>
+              <span className="badge bg-success">{totalSpaceSaved.toFixed(2)} GB</span>
+            </div>
             <button 
               onClick={pushSelectedToN8n} 
               className="btn staleflix-submit-button"
