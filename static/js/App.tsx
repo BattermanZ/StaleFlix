@@ -20,7 +20,7 @@ interface CachedData {
   content: StaleContent[];
 }
 
-function App() {
+export default function Component() {
   const [staleContent, setStaleContent] = useState<StaleContent[]>([]);
   const [selectedItems, setSelectedItems] = useState<{[key: string]: boolean}>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -28,6 +28,7 @@ function App() {
   const [sortConfig, setSortConfig] = useState<{ key: keyof StaleContent; direction: 'ascending' | 'descending' } | null>(null);
   const [isPushing, setIsPushing] = useState(false);
   const [totalSpaceSaved, setTotalSpaceSaved] = useState<number>(0);
+  const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
 
   useEffect(() => {
     fetchStaleContent(false);
@@ -111,9 +112,10 @@ function App() {
     const selectedIds = Object.keys(selectedItems).filter(id => selectedItems[id]);
     const selectedContent = staleContent
       .filter(item => selectedIds.includes(item.plex_id))
-      .map(({ plex_id, title, type, added_at, requester, size, watch_status, total_episodes, requester_watched, poster_url }) => ({
+      .map(({ plex_id, title, original_title, type, added_at, requester, size, watch_status, total_episodes, requester_watched, poster_url }) => ({
         plex_id,
         title,
+        original_title,
         type,
         added_at,
         requester,
@@ -125,6 +127,8 @@ function App() {
       }));
 
     setIsPushing(true);
+    setUploadProgress({});
+
     try {
       const response = await fetch('/push_to_n8n', {
         method: 'POST',
@@ -140,6 +144,7 @@ function App() {
       alert('Failed to push data to n8n. Please try again.');
     } finally {
       setIsPushing(false);
+      setUploadProgress({});
     }
   };
 
@@ -220,6 +225,18 @@ function App() {
                     </td>
                     <td>
                       <img src={item.poster_url} alt={`Poster for ${item.title}`} className="img-thumbnail" style={{maxWidth: '75px'}} />
+                      {uploadProgress[item.plex_id] !== undefined && (
+                        <div className="progress mt-1" style={{height: '5px'}}>
+                          <div 
+                            className="progress-bar" 
+                            role="progressbar" 
+                            style={{width: `${uploadProgress[item.plex_id]}%`}} 
+                            aria-valuenow={uploadProgress[item.plex_id]} 
+                            aria-valuemin={0} 
+                            aria-valuemax={100}
+                          ></div>
+                        </div>
+                      )}
                     </td>
                     <td>
                       {item.title}
@@ -282,4 +299,4 @@ function App() {
   );
 }
 
-ReactDOM.render(<App />, document.getElementById('root'));
+ReactDOM.render(<Component />, document.getElementById('root'));

@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from fuzzywuzzy import fuzz
 import logging
 import json
+import cloudinary
+import cloudinary.uploader
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
@@ -33,6 +35,13 @@ SONARR_API_KEY = os.getenv('SONARR_API_KEY')
 STALE_MONTHS = int(os.getenv('STALE_MONTHS', 3))
 N8N_WEBHOOK_URL = os.getenv('N8N_WEBHOOK_URL')
 API_KEY = os.getenv('N8N_API_KEY')
+
+# Cloudinary configuration
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.getenv('CLOUDINARY_API_KEY'),
+    api_secret=os.getenv('CLOUDINARY_API_SECRET')
+)
 
 CACHE_FILE = 'stale_content_cache.json'
 
@@ -243,23 +252,6 @@ def fetch_movie_watch_status(movie_key, users):
             logging.error(f"Error fetching watch status for user {username}: {e}")
     return watch_status
 
-def check_if_stale(watch_status, library_type, added_at):
-    if not watch_status:
-        return (datetime.now() - added_at) > timedelta(days=30 * STALE_MONTHS)
-
-    current_time = datetime.now()
-    stale_threshold = current_time - timedelta(days=30 * STALE_MONTHS)
-
-    for status in watch_status.values():
-        if library_type == 'show':
-            if status != "0.00%":
-                return False
-        else:
-            if status == "Watched":
-                return False
-
-    return True
-
 def check_requester_watched(requester, watch_status):
     return requester in watch_status and (
         watch_status[requester] == "Watched" or 
@@ -275,6 +267,16 @@ def load_cache():
         with open(CACHE_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
     return None
+
+def upload_to_cloudinary(plex_poster_url):
+    try:
+        response = requests.get(plex_poster_url)
+        response.raise_for_status()
+        result = cloudinary.uploader.upload(response.content)
+        return result['secure_url']
+    except Exception as e:
+        logging.error(f"Error uploading to Cloudinary: {str(e)}")
+        return None
 
 @app.route('/')
 def index():
@@ -324,6 +326,14 @@ def push_to_n8n():
             return jsonify({"error": "No content selected"}), 400
 
         total_space_saved = sum(float(item['size']) for item in selected_content if item['size'] != "Unknown")
+
+        # Upload posters to Cloudinary
+        for item in selected_content:
+            cloudinary_url = upload_to_cloudinary(item['poster_url'])
+            if cloudinary_url:
+                item['poster_url'] = cloudinary_url
+            else:
+                logging.warning(f"Failed to upload poster for {item['title']} to Cloudinary. Using original Plex URL.")
 
         n8n_data = {
             "stale_content": selected_content,
