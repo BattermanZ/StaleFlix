@@ -352,5 +352,30 @@ def push_to_n8n():
         logging.error(f"Unexpected error in push_to_n8n: {str(e)}")
         return jsonify({"error": "An unexpected error occurred"}), 500
 
+@app.route('/prepare_newsletter', methods=['POST'])
+def prepare_newsletter():
+    try:
+        selected_content = request.json.get('selected_content', [])
+        
+        if not selected_content:
+            return jsonify({"error": "No content selected"}), 400
+
+        # Upload posters to Cloudinary
+        for item in selected_content:
+            cloudinary_url = upload_to_cloudinary(item['poster_url'])
+            if cloudinary_url:
+                item['poster_url'] = cloudinary_url
+            else:
+                logging.warning(f"Failed to upload poster for {item['title']} to Cloudinary. Using original Plex URL.")
+
+        return jsonify({
+            "message": "Content prepared for newsletter",
+            "prepared_content": selected_content
+        }), 200
+
+    except Exception as e:
+        logging.error(f"Error preparing newsletter content: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred"}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, port=9999, host='0.0.0.0')

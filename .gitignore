@@ -14,6 +14,7 @@ yarn-error.log*
 # Build outputs
 static/js/bundle.js
 static/js/bundle.js.LICENSE.txt
+stale_content_cache.json
 
 # Logs
 *.log
