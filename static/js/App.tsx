@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import ReactDOM from 'react-dom';
-import ReactDOMServer from 'react-dom/server';
-import { NewsletterPersonalization } from './NewsletterPersonalization';
-import { NewsletterTemplate } from './NewsletterTemplate';
+import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
+import { renderToString } from 'react-dom/server';
 
 interface StaleContent {
   plex_id: string;
@@ -24,7 +22,17 @@ interface CachedData {
   content: StaleContent[];
 }
 
-function App() {
+function LandingPage() {
+  return (
+    <div className="landing-page">
+      <h1>Welcome to StaleFlix</h1>
+      <p>Manage your Plex server's stale content efficiently.</p>
+      <Link to="/setup" className="btn btn-primary">Go to Setup</Link>
+    </div>
+  );
+}
+
+function SetupPage() {
   const [staleContent, setStaleContent] = useState<StaleContent[]>([]);
   const [selectedItems, setSelectedItems] = useState<{[key: string]: boolean}>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -165,7 +173,7 @@ function App() {
 
   const handlePreviewNewsletter = () => {
     const selectedContent = staleContent.filter(item => selectedItems[item.plex_id]);
-    const htmlContent = ReactDOMServer.renderToString(
+    const htmlContent = renderToString(
       <NewsletterTemplate
         personalizedMessage={personalizedMessage}
         selectedContent={selectedContent}
@@ -181,7 +189,7 @@ function App() {
 
   const handleGenerateNewsletter = () => {
     const selectedContent = staleContent.filter(item => selectedItems[item.plex_id]);
-    const htmlContent = ReactDOMServer.renderToString(
+    const htmlContent = renderToString(
       <NewsletterTemplate
         personalizedMessage={personalizedMessage}
         selectedContent={selectedContent}
@@ -201,7 +209,7 @@ function App() {
 
   return (
     <div className="staleflix-container">
-      <h1 className="staleflix-header">StaleFlix</h1>
+      <h1 className="staleflix-header">StaleFlix Setup</h1>
       {!showPersonalization ? (
         <>
           <button 
@@ -333,42 +341,69 @@ function App() {
                   <strong>Total Space Saved: </strong>
                   <span className="badge bg-success">{totalSpaceSaved.toFixed(2)} GB</span>
                 </div>
-                <div>
-                  <button 
-                    onClick={pushSelectedToN8n} 
-                    className="btn staleflix-submit-button me-2"
-                    disabled={isPushing || Object.values(selectedItems).filter(Boolean).length === 0}
-                  >
-                    {isPushing ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Pushing to n8n...
-                      </>
-                    ) : 'Push Selected to n8n'}
-                  </button>
-                  <button 
-                    onClick={handleNextClick}
-                    className="btn btn-primary"
-                    disabled={Object.values(selectedItems).filter(Boolean).length === 0}
-                  >
-                    Next
-                  </button>
-                </div>
+                <button 
+                  onClick={pushSelectedToN8n} 
+                  className="btn btn-primary"
+                  disabled={isPushing || Object.keys(selectedItems).filter(id => selectedItems[id]).length === 0}
+                >
+                  {isPushing ? 'Pushing...' : 'Push Selected to n8n'}
+                </button>
               </div>
             </div>
           )}
+          <button onClick={handleNextClick} className="btn btn-primary mt-3">Next: Personalize Newsletter</button>
         </>
       ) : (
-        <NewsletterPersonalization
-          personalizedMessage={personalizedMessage}
-          setPersonalizedMessage={setPersonalizedMessage}
-          onPreview={handlePreviewNewsletter}
-          onGenerate={handleGenerateNewsletter}
-          onBack={handleBackClick}
-        />
+        <div className="newsletter-personalization">
+          <h2>Personalize Your Newsletter</h2>
+          <textarea
+            className="form-control mb-3"
+            rows={5}
+            value={personalizedMessage}
+            onChange={(e) => setPersonalizedMessage(e.target.value)}
+            placeholder="Enter a personalized message for your newsletter..."
+          />
+          <div className="d-flex justify-content-between">
+            <button onClick={handleBackClick} className="btn btn-secondary">Back</button>
+            <button onClick={handlePreviewNewsletter} className="btn btn-primary">Preview Newsletter</button>
+            <button onClick={handleGenerateNewsletter} className="btn btn-success">Generate Newsletter</button>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-ReactDOM.render(<App />, document.getElementById('root'));
+function NewsletterTemplate({ personalizedMessage, selectedContent }: { personalizedMessage: string, selectedContent: StaleContent[] }) {
+  return (
+    <div className="newsletter-template">
+      <h1>StaleFlix Newsletter</h1>
+      <p>{personalizedMessage}</p>
+      <h2>Stale Content Summary</h2>
+      <ul>
+        {selectedContent.map(item => (
+          <li key={item.plex_id}>
+            <h3>{item.title}</h3>
+            <img src={item.poster_url} alt={`Poster for ${item.title}`} style={{maxWidth: '100px'}} />
+            <p>Type: {item.type}</p>
+            <p>Added on: {item.added_at}</p>
+            <p>Size: {item.size} GB</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/setup" element={<SetupPage />} />
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;

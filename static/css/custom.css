@@ -111,6 +111,21 @@ body {
   margin-bottom: 1rem;
 }
 
+.landing-page {
+  text-align: center;
+  padding: 4rem 1rem;
+}
+
+.landing-page h1 {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.landing-page p {
+  font-size: 1.2rem;
+  margin-bottom: 2rem;
+}
+
 @media (max-width: 768px) {
   .staleflix-container {
     padding: 1rem;
@@ -122,5 +137,13 @@ body {
 
   .watch-status {
     font-size: 0.8em;
+  }
+
+  .landing-page h1 {
+    font-size: 2rem;
+  }
+
+  .landing-page p {
+    font-size: 1rem;
   }
 }
