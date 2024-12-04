@@ -33,8 +33,6 @@ RADARR_API_KEY = os.getenv('RADARR_API_KEY')
 SONARR_API_URL = os.getenv('SONARR_API_URL')
 SONARR_API_KEY = os.getenv('SONARR_API_KEY')
 STALE_MONTHS = int(os.getenv('STALE_MONTHS', 3))
-N8N_WEBHOOK_URL = os.getenv('N8N_WEBHOOK_URL')
-API_KEY = os.getenv('N8N_API_KEY')
 
 # Cloudinary configuration
 cloudinary.config(
@@ -316,46 +314,6 @@ def get_stale_content():
     
     return jsonify(data_with_timestamp)
 
-@app.route('/push_to_n8n', methods=['POST'])
-def push_to_n8n():
-    try:
-        headers = {
-            'Content-Type': 'application/json',
-            'X-API-Key': API_KEY
-        }
-        
-        selected_content = request.json.get('selected_content', [])
-        
-        if not selected_content:
-            return jsonify({"error": "No content selected"}), 400
-
-        total_space_saved = sum(float(item['size']) for item in selected_content if item['size'] != "Unknown")
-
-        # Upload posters to Cloudinary
-        for item in selected_content:
-            cloudinary_url = upload_to_cloudinary(item['poster_url'])
-            if cloudinary_url:
-                item['poster_url'] = cloudinary_url
-            else:
-                logging.warning(f"Failed to upload poster for {item['title']} to Cloudinary. Using original Plex URL.")
-
-        n8n_data = {
-            "stale_content": selected_content,
-            "total_space_saved": f"{total_space_saved:.2f}",
-            "timestamp": datetime.now().isoformat()
-        }
-
-        response = requests.post(N8N_WEBHOOK_URL, json=n8n_data, headers=headers)
-        response.raise_for_status()
-
-        return jsonify({"message": "Data successfully pushed to n8n"}), 200
-    except requests.RequestException as e:
-        logging.error(f"Error pushing data to n8n: {str(e)}")
-        return jsonify({"error": "Failed to push data to n8n"}), 500
-    except Exception as e:
-        logging.error(f"Unexpected error in push_to_n8n: {str(e)}")
-        return jsonify({"error": "An unexpected error occurred"}), 500
-
 @app.route('/prepare_newsletter', methods=['POST'])
 def prepare_newsletter():
     try:
@@ -383,3 +341,4 @@ def prepare_newsletter():
 
 if __name__ == '__main__':
     app.run(debug=True, port=9999, host='0.0.0.0')
+

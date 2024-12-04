@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
-import { renderToString } from 'react-dom/server';
+import ReactDOM from 'react-dom';
+import { generateNewsletter } from './generateNewsletter';
+import { NewsletterPersonalization } from './NewsletterPersonalization';
 
 interface StaleContent {
   plex_id: string;
@@ -17,46 +18,29 @@ interface StaleContent {
   content_url: string;
 }
 
-interface CachedData {
-  timestamp: string;
-  content: StaleContent[];
-}
-
-function LandingPage() {
-  return (
-    <div className="landing-page">
-      <h1>Welcome to StaleFlix</h1>
-      <p>Manage your Plex server's stale content efficiently.</p>
-      <Link to="/setup" className="btn btn-primary">Go to Setup</Link>
-    </div>
-  );
-}
-
-function SetupPage() {
+function App() {
   const [staleContent, setStaleContent] = useState<StaleContent[]>([]);
   const [selectedItems, setSelectedItems] = useState<{[key: string]: boolean}>({});
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof StaleContent; direction: 'ascending' | 'descending' } | null>(null);
-  const [isPushing, setIsPushing] = useState(false);
   const [totalSpaceSaved, setTotalSpaceSaved] = useState<number>(0);
-  const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({});
   const [showPersonalization, setShowPersonalization] = useState(false);
   const [personalizedMessage, setPersonalizedMessage] = useState('');
 
   useEffect(() => {
-    fetchStaleContent(false);
+    fetchStaleContent();
   }, []);
 
   useEffect(() => {
     calculateTotalSpaceSaved();
   }, [selectedItems, staleContent]);
 
-  const fetchStaleContent = async (forceRefresh: boolean = false) => {
+  const fetchStaleContent = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/get_stale_content?force_refresh=${forceRefresh}`);
-      const data: CachedData = await response.json();
+      const response = await fetch('/get_stale_content');
+      const data = await response.json();
       setStaleContent(data.content);
       setLastUpdated(data.timestamp);
     } catch (error) {
@@ -122,47 +106,6 @@ function SetupPage() {
     setTotalSpaceSaved(totalSpace);
   };
 
-  const pushSelectedToN8n = async () => {
-    const selectedIds = Object.keys(selectedItems).filter(id => selectedItems[id]);
-    const selectedContent = staleContent
-      .filter(item => selectedIds.includes(item.plex_id))
-      .map(({ plex_id, title, original_title, type, added_at, requester, size, watch_status, total_episodes, requester_watched, poster_url, content_url }) => ({
-        plex_id,
-        title,
-        original_title,
-        type,
-        added_at,
-        requester,
-        size,
-        watch_status,
-        total_episodes,
-        requester_watched,
-        poster_url,
-        content_url
-      }));
-
-    setIsPushing(true);
-    setUploadProgress({});
-
-    try {
-      const response = await fetch('/push_to_n8n', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ selected_content: selectedContent }),
-      });
-      const result = await response.json();
-      alert(result.message);
-    } catch (error) {
-      console.error('Error pushing to n8n:', error);
-      alert('Failed to push data to n8n. Please try again.');
-    } finally {
-      setIsPushing(false);
-      setUploadProgress({});
-    }
-  };
-
   const handleNextClick = () => {
     setShowPersonalization(true);
   };
@@ -171,49 +114,45 @@ function SetupPage() {
     setShowPersonalization(false);
   };
 
-  const handlePreviewNewsletter = () => {
+  const handlePreviewNewsletter = async () => {
     const selectedContent = staleContent.filter(item => selectedItems[item.plex_id]);
-    const htmlContent = renderToString(
-      <NewsletterTemplate
-        personalizedMessage={personalizedMessage}
-        selectedContent={selectedContent}
-      />
-    );
-    
-    const previewWindow = window.open('', '_blank');
-    if (previewWindow) {
-      previewWindow.document.write(htmlContent);
-      previewWindow.document.close();
+    try {
+      const htmlContent = await generateNewsletter(personalizedMessage, selectedContent);
+      const previewWindow = window.open('', '_blank');
+      if (previewWindow) {
+        previewWindow.document.write(htmlContent);
+        previewWindow.document.close();
+      }
+    } catch (error) {
+      console.error('Error generating newsletter preview:', error);
     }
   };
 
-  const handleGenerateNewsletter = () => {
+  const handleGenerateNewsletter = async () => {
     const selectedContent = staleContent.filter(item => selectedItems[item.plex_id]);
-    const htmlContent = renderToString(
-      <NewsletterTemplate
-        personalizedMessage={personalizedMessage}
-        selectedContent={selectedContent}
-      />
-    );
-
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'staleflix_newsletter.html';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      const htmlContent = await generateNewsletter(personalizedMessage, selectedContent);
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'staleflix_newsletter.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error generating newsletter:', error);
+    }
   };
 
   return (
     <div className="staleflix-container">
-      <h1 className="staleflix-header">StaleFlix Setup</h1>
+      <h1 className="staleflix-header">StaleFlix</h1>
       {!showPersonalization ? (
         <>
           <button 
-            onClick={() => fetchStaleContent(true)} 
+            onClick={() => fetchStaleContent()} 
             className="btn staleflix-button btn-lg mb-4"
             disabled={isLoading}
           >
@@ -286,18 +225,6 @@ function SetupPage() {
                         </td>
                         <td>
                           <img src={item.poster_url} alt={`Poster for ${item.title}`} className="img-thumbnail" style={{maxWidth: '75px'}} />
-                          {uploadProgress[item.plex_id] !== undefined && (
-                            <div className="progress mt-1" style={{height: '5px'}}>
-                              <div 
-                                className="progress-bar" 
-                                role="progressbar" 
-                                style={{width: `${uploadProgress[item.plex_id]}%`}} 
-                                aria-valuenow={uploadProgress[item.plex_id]} 
-                                aria-valuemin={0} 
-                                aria-valuemax={100}
-                              ></div>
-                            </div>
-                          )}
                         </td>
                         <td>
                           {item.title}
@@ -341,69 +268,33 @@ function SetupPage() {
                   <strong>Total Space Saved: </strong>
                   <span className="badge bg-success">{totalSpaceSaved.toFixed(2)} GB</span>
                 </div>
-                <button 
-                  onClick={pushSelectedToN8n} 
-                  className="btn btn-primary"
-                  disabled={isPushing || Object.keys(selectedItems).filter(id => selectedItems[id]).length === 0}
-                >
-                  {isPushing ? 'Pushing...' : 'Push Selected to n8n'}
-                </button>
+                <div>
+                  <button 
+                    onClick={handleNextClick}
+                    className="btn btn-primary"
+                    disabled={Object.values(selectedItems).filter(Boolean).length === 0}
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             </div>
           )}
-          <button onClick={handleNextClick} className="btn btn-primary mt-3">Next: Personalize Newsletter</button>
         </>
       ) : (
-        <div className="newsletter-personalization">
-          <h2>Personalize Your Newsletter</h2>
-          <textarea
-            className="form-control mb-3"
-            rows={5}
-            value={personalizedMessage}
-            onChange={(e) => setPersonalizedMessage(e.target.value)}
-            placeholder="Enter a personalized message for your newsletter..."
-          />
-          <div className="d-flex justify-content-between">
-            <button onClick={handleBackClick} className="btn btn-secondary">Back</button>
-            <button onClick={handlePreviewNewsletter} className="btn btn-primary">Preview Newsletter</button>
-            <button onClick={handleGenerateNewsletter} className="btn btn-success">Generate Newsletter</button>
-          </div>
-        </div>
+        <NewsletterPersonalization
+          personalizedMessage={personalizedMessage}
+          setPersonalizedMessage={setPersonalizedMessage}
+          onPreview={handlePreviewNewsletter}
+          onGenerate={handleGenerateNewsletter}
+          onBack={handleBackClick}
+        />
       )}
     </div>
   );
 }
 
-function NewsletterTemplate({ personalizedMessage, selectedContent }: { personalizedMessage: string, selectedContent: StaleContent[] }) {
-  return (
-    <div className="newsletter-template">
-      <h1>StaleFlix Newsletter</h1>
-      <p>{personalizedMessage}</p>
-      <h2>Stale Content Summary</h2>
-      <ul>
-        {selectedContent.map(item => (
-          <li key={item.plex_id}>
-            <h3>{item.title}</h3>
-            <img src={item.poster_url} alt={`Poster for ${item.title}`} style={{maxWidth: '100px'}} />
-            <p>Type: {item.type}</p>
-            <p>Added on: {item.added_at}</p>
-            <p>Size: {item.size} GB</p>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function App() {
-  return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/setup" element={<SetupPage />} />
-      </Routes>
-    </Router>
-  );
-}
+ReactDOM.render(<App />, document.getElementById('root'));
 
 export default App;
+

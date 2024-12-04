@@ -443,3 +443,4 @@ export const NewsletterTemplate: React.FC<NewsletterTemplateProps> = ({ personal
     </html>
   );
 };
+

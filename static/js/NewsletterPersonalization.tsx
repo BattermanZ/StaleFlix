@@ -20,8 +20,7 @@ export function NewsletterPersonalization({
       <h2>Personalize Your Newsletter</h2>
       <textarea
         value={personalizedMessage}
-        onChange={(e) => setPersonalizedMessage(e.target.value)
-        }
+        onChange={(e) => setPersonalizedMessage(e.target.value)}
         placeholder="Enter your personalized message for the newsletter..."
         rows={5}
         className="form-control mb-3"
