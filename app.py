@@ -270,16 +270,6 @@ def load_cache():
             return json.load(f)
     return None
 
-def upload_to_cloudinary(plex_poster_url):
-    try:
-        response = requests.get(plex_poster_url)
-        response.raise_for_status()
-        result = cloudinary.uploader.upload(response.content)
-        return result['secure_url']
-    except Exception as e:
-        logging.error(f"Error uploading to Cloudinary: {str(e)}")
-        return None
-
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -314,30 +304,33 @@ def get_stale_content():
     
     return jsonify(data_with_timestamp)
 
-@app.route('/prepare_newsletter', methods=['POST'])
-def prepare_newsletter():
+@app.route('/upload_to_cloudinary', methods=['POST'])
+def upload_to_cloudinary():
     try:
-        selected_content = request.json.get('selected_content', [])
+        selected_content = request.json.get('selectedContent', [])
         
         if not selected_content:
             return jsonify({"error": "No content selected"}), 400
 
-        # Upload posters to Cloudinary
+        updated_content = []
         for item in selected_content:
-            cloudinary_url = upload_to_cloudinary(item['poster_url'])
-            if cloudinary_url:
-                item['poster_url'] = cloudinary_url
-            else:
-                logging.error(f"Failed to upload poster for {item['title']} to Cloudinary. Using original Plex URL.")
+            try:
+                response = requests.get(item['poster_url'])
+                response.raise_for_status()
+                result = cloudinary.uploader.upload(response.content)
+                item['poster_url'] = result['secure_url']
+                updated_content.append(item)
+                logging.info(f"Successfully uploaded image for {item['title']} to Cloudinary")
+            except Exception as e:
+                logging.error(f"Error uploading image for {item['title']} to Cloudinary: {str(e)}")
+                # If upload fails, keep the original Plex URL
+                updated_content.append(item)
 
-        return jsonify({
-            "message": "Content prepared for newsletter",
-            "prepared_content": selected_content
-        }), 200
+        return jsonify(updated_content), 200
 
     except Exception as e:
-        logging.error(f"Error preparing newsletter content: {str(e)}")
-        return jsonify({"error": "An unexpected error occurred"}), 500
+        logging.error(f"Error in Cloudinary upload process: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred during Cloudinary upload"}), 500
 
 @app.route('/api/send-to-listmonk', methods=['POST'])
 def send_to_listmonk():
@@ -346,17 +339,6 @@ def send_to_listmonk():
         current_month_year = get_current_month_year()
         subject = f"StaleFlix Newsletter - {current_month_year}"
         html_content = data['htmlContent']
-
-        # Upload images to Cloudinary
-        selected_content = data.get('selectedContent', [])
-        for item in selected_content:
-            cloudinary_url = upload_to_cloudinary(item['poster_url'])
-            if cloudinary_url:
-                item['poster_url'] = cloudinary_url
-                # Update the HTML content with the new Cloudinary URL
-                html_content = html_content.replace(item['poster_url'], cloudinary_url)
-            else:
-                logging.warning(f"Failed to upload image for {item['title']} to Cloudinary. Using original Plex URL.")
 
         campaign_data = {
             "name": subject,
@@ -431,4 +413,3 @@ logging.basicConfig(
 
 if __name__ == '__main__':
     app.run(debug=True, port=9999, host='0.0.0.0')
-

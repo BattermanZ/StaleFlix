@@ -27,6 +27,7 @@ function App() {
   const [totalSpaceSaved, setTotalSpaceSaved] = useState<number>(0);
   const [showPersonalization, setShowPersonalization] = useState(false);
   const [personalizedMessage, setPersonalizedMessage] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     fetchStaleContent();
@@ -106,8 +107,37 @@ function App() {
     setTotalSpaceSaved(totalSpace);
   };
 
-  const handleNextClick = () => {
-    setShowPersonalization(true);
+  const handleNextClick = async () => {
+    setIsUploading(true);
+    const selectedContent = staleContent.filter(item => selectedItems[item.plex_id]);
+    
+    try {
+      const response = await fetch('/upload_to_cloudinary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ selectedContent }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload images to Cloudinary');
+      }
+
+      const updatedContent = await response.json();
+      setStaleContent(prevContent => 
+        prevContent.map(item => 
+          updatedContent.find((updated: StaleContent) => updated.plex_id === item.plex_id) || item
+        )
+      );
+
+      setShowPersonalization(true);
+    } catch (error) {
+      console.error('Error uploading images to Cloudinary:', error);
+      // Handle error (e.g., show an error message to the user)
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleBackClick = () => {
@@ -301,12 +331,17 @@ function App() {
                   <button 
                     onClick={handleNextClick}
                     className="btn btn-primary"
-                    disabled={Object.values(selectedItems).filter(Boolean).length === 0}
+                    disabled={Object.values(selectedItems).filter(Boolean).length === 0 || isUploading}
                   >
-                    Next
+                    {isUploading ? 'Uploading...' : 'Next'}
                   </button>
                 </div>
               </div>
+              {isUploading && (
+                <div className="alert alert-info mt-3" role="alert">
+                  Uploading images to Cloudinary...
+                </div>
+              )}
             </div>
           )}
         </>
