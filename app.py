@@ -1,3 +1,4 @@
+import logging
 from flask import Flask, render_template, request, jsonify, send_from_directory
 import os
 import requests
@@ -5,21 +6,17 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from fuzzywuzzy import fuzz
-import logging
 import json
 import cloudinary
 import cloudinary.uploader
+from requests.auth import HTTPBasicAuth
+
+def get_current_month_year():
+    current_date = datetime.now()
+    return current_date.strftime("%B %Y")
 
 app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
-
-# Ensure logs directory exists
-if not os.path.exists('logs'):
-    os.makedirs('logs')
-
-# Set up logging
-logging.basicConfig(filename='logs/staleflix.log', level=logging.INFO, 
-                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load environment variables
 load_dotenv()
@@ -40,6 +37,13 @@ cloudinary.config(
     api_key=os.getenv('CLOUDINARY_API_KEY'),
     api_secret=os.getenv('CLOUDINARY_API_SECRET')
 )
+
+# Listmonk configuration
+LISTMONK_API_URL = os.getenv('LISTMONK_API_URL')
+LISTMONK_API_USER = os.getenv('LISTMONK_API_USER', 'staleflix_api')
+LISTMONK_API_KEY = os.getenv('LISTMONK_API_KEY')
+LISTMONK_LIST_ID = os.getenv('LISTMONK_LIST_ID')
+LISTMONK_FROM_EMAIL = os.getenv('LISTMONK_FROM_EMAIL')
 
 CACHE_FILE = 'stale_content_cache.json'
 
@@ -67,6 +71,9 @@ def get_sonarr_headers():
         'X-Api-Key': SONARR_API_KEY,
         'Accept': 'application/json'
     }
+
+def get_listmonk_auth():
+    return HTTPBasicAuth(LISTMONK_API_USER, LISTMONK_API_KEY)
 
 def fetch_overseerr_requests():
     all_requests = []
@@ -116,12 +123,9 @@ def fetch_plex_content(requester_mapping, radarr_movies, sonarr_series):
 
         for directory in libraries_root.findall(".//Directory"):
             library_key = directory.get('key')
-            library_title = directory.get('title')
             library_type = directory.get('type')
 
             if library_type in ['movie', 'show']:
-                logging.info(f"Fetching content for library: {library_title} (Type: {library_type})")
-
                 items_response = requests.get(f"{PLEX_URL}/library/sections/{library_key}/all", headers=get_plex_headers())
                 items_response.raise_for_status()
                 items_root = ET.fromstring(items_response.content)
@@ -280,10 +284,6 @@ def upload_to_cloudinary(plex_poster_url):
 def index():
     return render_template('index.html')
 
-@app.route('/setup')
-def setup():
-    return render_template('setup.html')
-
 @app.route('/static/<path:path>')
 def send_static(path):
     return send_from_directory('static', path)
@@ -328,7 +328,7 @@ def prepare_newsletter():
             if cloudinary_url:
                 item['poster_url'] = cloudinary_url
             else:
-                logging.warning(f"Failed to upload poster for {item['title']} to Cloudinary. Using original Plex URL.")
+                logging.error(f"Failed to upload poster for {item['title']} to Cloudinary. Using original Plex URL.")
 
         return jsonify({
             "message": "Content prepared for newsletter",
@@ -338,6 +338,96 @@ def prepare_newsletter():
     except Exception as e:
         logging.error(f"Error preparing newsletter content: {str(e)}")
         return jsonify({"error": "An unexpected error occurred"}), 500
+
+@app.route('/api/send-to-listmonk', methods=['POST'])
+def send_to_listmonk():
+    try:
+        data = request.json
+        current_month_year = get_current_month_year()
+        subject = f"StaleFlix Newsletter - {current_month_year}"
+        html_content = data['htmlContent']
+
+        # Upload images to Cloudinary
+        selected_content = data.get('selectedContent', [])
+        for item in selected_content:
+            cloudinary_url = upload_to_cloudinary(item['poster_url'])
+            if cloudinary_url:
+                item['poster_url'] = cloudinary_url
+                # Update the HTML content with the new Cloudinary URL
+                html_content = html_content.replace(item['poster_url'], cloudinary_url)
+            else:
+                logging.warning(f"Failed to upload image for {item['title']} to Cloudinary. Using original Plex URL.")
+
+        campaign_data = {
+            "name": subject,
+            "subject": subject,
+            "lists": [int(LISTMONK_LIST_ID)],
+            "from_email": LISTMONK_FROM_EMAIL,
+            "type": "regular",
+            "content_type": "html",
+            "body": html_content
+        }
+
+        auth = get_listmonk_auth()
+        logging.info(f"Sending campaign to Listmonk: {subject}")
+        logging.debug(f"Campaign data: {json.dumps(campaign_data, indent=2)}")
+
+        response = requests.post(
+            f"{LISTMONK_API_URL}/campaigns",
+            json=campaign_data,
+            auth=auth
+        )
+        response.raise_for_status()
+        campaign_id = response.json()['data']['id']
+        logging.info(f"Campaign created successfully. ID: {campaign_id}")
+
+        start_response = requests.put(
+            f"{LISTMONK_API_URL}/campaigns/{campaign_id}/status",
+            json={"status": "running"},
+            auth=auth
+        )
+        start_response.raise_for_status()
+        logging.info("Campaign started successfully")
+
+        return jsonify({"message": "Newsletter sent to Listmonk successfully"}), 200
+    except requests.RequestException as e:
+        logging.error(f"Error sending newsletter to Listmonk: {str(e)}")
+        if e.response:
+            logging.error(f"Response status code: {e.response.status_code}")
+            logging.error(f"Response headers: {e.response.headers}")
+            logging.error(f"Response content: {e.response.text}")
+        return jsonify({"error": f"Failed to send newsletter to Listmonk: {str(e)}"}), 500
+
+@app.route('/api/test-listmonk-connection', methods=['GET'])
+def test_listmonk_connection():
+    try:
+        auth = get_listmonk_auth()
+        logging.info(f"Testing Listmonk connection")
+        response = requests.get(
+            f"{LISTMONK_API_URL}/health",
+            auth=auth
+        )
+        response.raise_for_status()
+        logging.info(f"Listmonk health check response: {response.text}")
+        return jsonify({"message": "Listmonk connection successful", "status": response.json()}), 200
+    except requests.RequestException as e:
+        logging.error(f"Error connecting to Listmonk: {str(e)}")
+        if e.response:
+            logging.error(f"Response status code: {e.response.status_code}")
+            logging.error(f"Response headers: {e.response.headers}")
+            logging.error(f"Response content: {e.response.text}")
+        return jsonify({"error": f"Failed to connect to Listmonk: {str(e)}"}), 500
+
+# Ensure logs directory exists
+if not os.path.exists('logs'):
+    os.makedirs('logs')
+
+# Set up logging
+logging.basicConfig(
+    filename='logs/staleflix.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
 if __name__ == '__main__':
     app.run(debug=True, port=9999, host='0.0.0.0')

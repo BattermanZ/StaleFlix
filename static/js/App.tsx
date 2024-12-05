@@ -146,6 +146,35 @@ function App() {
     }
   };
 
+  const handleSendToListmonk = async () => {
+    const selectedContent = staleContent.filter(item => selectedItems[item.plex_id]);
+    const htmlContent = await generateNewsletter(personalizedMessage, selectedContent);
+    
+    try {
+      const response = await fetch('/api/send-to-listmonk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          subject: `StaleFlix Newsletter - ${new Date().toLocaleDateString()}`,
+          htmlContent,
+          content: JSON.stringify(selectedContent),
+          personalizedMessage
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send newsletter to Listmonk');
+      }
+
+      // Handle success (e.g., show a success message)
+    } catch (error) {
+      console.error('Error sending newsletter to Listmonk:', error);
+      throw error;
+    }
+  };
+
   return (
     <div className="staleflix-container">
       <h1 className="staleflix-header">StaleFlix</h1>
@@ -288,6 +317,7 @@ function App() {
           onPreview={handlePreviewNewsletter}
           onGenerate={handleGenerateNewsletter}
           onBack={handleBackClick}
+          onSendToListmonk={handleSendToListmonk}
         />
       )}
     </div>
