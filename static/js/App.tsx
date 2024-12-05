@@ -134,7 +134,6 @@ function App() {
       setShowPersonalization(true);
     } catch (error) {
       console.error('Error uploading images to Cloudinary:', error);
-      // Handle error (e.g., show an error message to the user)
     } finally {
       setIsUploading(false);
     }
@@ -201,6 +200,28 @@ function App() {
       // Handle success (e.g., show a success message)
     } catch (error) {
       console.error('Error sending newsletter to Listmonk:', error);
+      throw error;
+    }
+  };
+
+  const handleSendToPlex = async () => {
+    const selectedContent = staleContent.filter(item => selectedItems[item.plex_id]);
+    try {
+      const response = await fetch('/api/send-to-plex-collections', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ selectedContent }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send content to Plex collections');
+      }
+
+      // Handle success (e.g., show a success message)
+    } catch (error) {
+      console.error('Error sending content to Plex collections:', error);
       throw error;
     }
   };
@@ -353,6 +374,8 @@ function App() {
           onGenerate={handleGenerateNewsletter}
           onBack={handleBackClick}
           onSendToListmonk={handleSendToListmonk}
+          onSendToPlex={handleSendToPlex}
+          selectedContent={staleContent.filter(item => selectedItems[item.plex_id])}
         />
       )}
     </div>

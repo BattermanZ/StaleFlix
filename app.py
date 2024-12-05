@@ -10,6 +10,7 @@ import json
 import cloudinary
 import cloudinary.uploader
 from requests.auth import HTTPBasicAuth
+from plexapi.server import PlexServer
 
 def get_current_month_year():
     current_date = datetime.now()
@@ -399,6 +400,49 @@ def test_listmonk_connection():
             logging.error(f"Response headers: {e.response.headers}")
             logging.error(f"Response content: {e.response.text}")
         return jsonify({"error": f"Failed to connect to Listmonk: {str(e)}"}), 500
+
+def get_plex_server():
+    return PlexServer(PLEX_URL, PLEX_TOKEN)
+
+def create_or_get_collection(plex, library_type):
+    collection_name = f"{'Movies' if library_type == 'movie' else 'TV Shows'} leaving Plex next month"
+    try:
+        collection = plex.library.section('Movies' if library_type == 'movie' else 'TV Shows').collection(collection_name)
+    except:
+        collection = plex.library.section('Movies' if library_type == 'movie' else 'TV Shows').createCollection(collection_name)
+    return collection
+
+@app.route('/api/send-to-plex-collections', methods=['POST'])
+def send_to_plex_collections():
+    try:
+        selected_content = request.json.get('selectedContent', [])
+        
+        if not selected_content:
+            return jsonify({"error": "No content selected"}), 400
+
+        plex = get_plex_server()
+        
+        movies_collection = create_or_get_collection(plex, 'movie')
+        tv_shows_collection = create_or_get_collection(plex, 'show')
+
+        for item in selected_content:
+            if item['type'] == 'anime':
+                continue  # Skip anime content
+
+            try:
+                plex_item = plex.fetchItem(int(item['plex_id']))
+                if item['type'] == 'movie':
+                    movies_collection.addItems(plex_item)
+                elif item['type'] == 'show':
+                    tv_shows_collection.addItems(plex_item)
+            except Exception as e:
+                logging.error(f"Error adding item {item['title']} to Plex collection: {str(e)}")
+
+        return jsonify({"message": "Content successfully added to Plex collections"}), 200
+
+    except Exception as e:
+        logging.error(f"Error in send_to_plex_collections: {str(e)}")
+        return jsonify({"error": "An unexpected error occurred while sending content to Plex collections"}), 500
 
 # Ensure logs directory exists
 if not os.path.exists('logs'):
