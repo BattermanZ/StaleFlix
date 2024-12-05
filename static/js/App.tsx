@@ -30,17 +30,17 @@ function App() {
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
-    fetchStaleContent();
+    fetchStaleContent(false);
   }, []);
 
   useEffect(() => {
     calculateTotalSpaceSaved();
   }, [selectedItems, staleContent]);
 
-  const fetchStaleContent = async () => {
+  const fetchStaleContent = async (forceRefresh: boolean = true) => {
     setIsLoading(true);
     try {
-      const response = await fetch('/get_stale_content');
+      const response = await fetch(`/get_stale_content?force_refresh=${forceRefresh}`);
       const data = await response.json();
       setStaleContent(data.content);
       setLastUpdated(data.timestamp);
@@ -232,7 +232,7 @@ function App() {
       {!showPersonalization ? (
         <>
           <button 
-            onClick={() => fetchStaleContent()} 
+            onClick={() => fetchStaleContent(true)} 
             className="btn staleflix-button btn-lg mb-4"
             disabled={isLoading}
           >
