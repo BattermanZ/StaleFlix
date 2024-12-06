@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 interface NewsletterPersonalizationProps {
   personalizedMessage: string;
@@ -53,14 +55,21 @@ export function NewsletterPersonalization({
   return (
     <div className="newsletter-personalization">
       <h2>Personalize Your Newsletter</h2>
-      <textarea
+      <ReactQuill
         value={personalizedMessage}
-        onChange={(e) => setPersonalizedMessage(e.target.value)}
+        onChange={setPersonalizedMessage}
         placeholder="Enter your personalized message for the newsletter..."
-        rows={5}
-        className="form-control mb-3"
+        modules={{
+          toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{'list': 'ordered'}, {'list': 'bullet'}],
+            ['link', 'image'],
+            ['clean']
+          ],
+        }}
       />
-      <div className="button-group">
+      <div className="button-group mt-3">
         <button onClick={onBack} className="btn btn-secondary me-2">Back</button>
         <button onClick={onPreview} className="btn btn-primary me-2">Preview Newsletter</button>
         <button onClick={onGenerate} className="btn btn-success me-2">Generate Newsletter</button>

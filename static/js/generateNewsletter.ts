@@ -1,4 +1,5 @@
 import juice from 'juice';
+import sanitizeHtml from 'sanitize-html';
 
 interface StaleContent {
   plex_id: string;
@@ -36,51 +37,59 @@ const getRequesterColor = (requester: string): string => {
   return `hsl(${hash % 360}, 70%, 80%)`;
 };
 
+const contentCards = (items: StaleContent[]): string => {
+  let html = '';
+  for (let i = 0; i < items.length; i += 2) {
+    html += '<tr>';
+    for (let j = i; j < Math.min(i + 2, items.length); j++) {
+      const item = items[j];
+      const requesterColor = getRequesterColor(item.requester);
+      html += `
+        <td style="width: 50%; padding: 10px; vertical-align: top;">
+          <table cellpadding="0" cellspacing="0" border="0" style="width: 100%; border: 1px solid #e0e0e0; border-radius: 5px; overflow: hidden;">
+            <tr>
+              <td style="padding: 0;">
+                <img src="${item.poster_url}" alt="${item.title} Poster" style="width: 100%; max-width: 300px; height: auto; display: block;">
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 15px; text-align: center;">
+                <h4 style="font-size: 18px; font-weight: bold; margin: 0 0 5px 0;">${item.title}</h4>
+                <p style="font-size: 14px; font-style: italic; color: #666666; margin: 0 0 15px 0;">
+                  ${item.original_title && item.original_title !== item.title ? item.original_title : '&nbsp;'}
+                </p>
+                <p style="font-size: 14px; color: #666666; margin: 8px 0;">Added on: ${formatDate(item.added_at)}</p>
+                <p style="font-size: 14px; color: #666666; margin: 8px 0;">
+                  Requested by: 
+                  <span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; color: #ffffff; background-color: ${requesterColor};">
+                    ${item.requester}
+                  </span>
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      `;
+    }
+    if (i + 1 >= items.length) {
+      html += '<td style="width: 50%; padding: 10px;"></td>';
+    }
+    html += '</tr>';
+  }
+  return html;
+};
+
 const generateHTML = (personalizedMessage: string, selectedContent: StaleContent[]): string => {
   const movies = selectedContent.filter(item => item.type === 'movie');
   const tvShows = selectedContent.filter(item => item.type === 'show');
 
-  const contentCards = (items: StaleContent[]): string => {
-    let html = '';
-    for (let i = 0; i < items.length; i += 2) {
-      html += '<tr>';
-      for (let j = i; j < Math.min(i + 2, items.length); j++) {
-        const item = items[j];
-        const requesterColor = getRequesterColor(item.requester);
-        html += `
-          <td style="width: 50%; padding: 10px; vertical-align: top;">
-            <table cellpadding="0" cellspacing="0" border="0" style="width: 100%; border: 1px solid #e0e0e0; border-radius: 5px; overflow: hidden;">
-              <tr>
-                <td style="padding: 0;">
-                  <img src="${item.poster_url}" alt="${item.title} Poster" style="width: 100%; max-width: 300px; height: auto; display: block;">
-                </td>
-              </tr>
-              <tr>
-                <td style="padding: 15px; text-align: center;">
-                  <h4 style="font-size: 18px; font-weight: bold; margin: 0 0 5px 0;">${item.title}</h4>
-                  <p style="font-size: 14px; font-style: italic; color: #666666; margin: 0 0 15px 0;">
-                    ${item.original_title && item.original_title !== item.title ? item.original_title : '&nbsp;'}
-                  </p>
-                  <p style="font-size: 14px; color: #666666; margin: 8px 0;">Added on: ${formatDate(item.added_at)}</p>
-                  <p style="font-size: 14px; color: #666666; margin: 8px 0;">
-                    Requested by: 
-                    <span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; color: #ffffff; background-color: ${requesterColor};">
-                      ${item.requester}
-                    </span>
-                  </p>
-                </td>
-              </tr>
-            </table>
-          </td>
-        `;
-      }
-      if (i + 1 >= items.length) {
-        html += '<td style="width: 50%; padding: 10px;"></td>';
-      }
-      html += '</tr>';
+  const sanitizedPersonalizedMessage = sanitizeHtml(personalizedMessage, {
+    allowedTags: sanitizeHtml.defaults.allowedTags.concat(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']),
+    allowedAttributes: {
+      ...sanitizeHtml.defaults.allowedAttributes,
+      '*': ['style']
     }
-    return html;
-  };
+  });
 
   const html = `
     <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -103,7 +112,7 @@ const generateHTML = (personalizedMessage: string, selectedContent: StaleContent
         <tr>
           <td style="padding: 20px;">
             <h2 style="font-size: 24px; font-weight: bold; margin-bottom: 20px; border-bottom: 2px solid #282a2d; padding-bottom: 10px;">What's stale in this month of ${getCurrentMonth()}</h2>
-            <p>${personalizedMessage}</p>
+            <div>${sanitizedPersonalizedMessage}</div>
             
             ${movies.length > 0 ? `
               <h3 style="font-size: 24px; font-weight: bold; margin-bottom: 20px; border-bottom: 2px solid #282a2d; padding-bottom: 10px;">Movies</h3>

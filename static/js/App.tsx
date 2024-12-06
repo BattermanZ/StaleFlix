@@ -26,7 +26,7 @@ function App() {
   const [sortConfig, setSortConfig] = useState<{ key: keyof StaleContent; direction: 'ascending' | 'descending' } | null>(null);
   const [totalSpaceSaved, setTotalSpaceSaved] = useState<number>(0);
   const [showPersonalization, setShowPersonalization] = useState(false);
-  const [personalizedMessage, setPersonalizedMessage] = useState('');
+  const [personalizedMessage, setPersonalizedMessage] = useState('<p>Enter your personalized message here...</p>');
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
