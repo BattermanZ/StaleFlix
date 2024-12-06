@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import { format } from 'date-fns';
 
 interface NewsletterPersonalizationProps {
   personalizedMessage: string;
@@ -8,10 +9,14 @@ interface NewsletterPersonalizationProps {
   onPreview: () => void;
   onGenerate: () => void;
   onBack: () => void;
-  onSendToListmonk: () => Promise<void>;
-  onSendToPlex: () => Promise<void>;
+  onSendToListmonk: (cloudinaryFolder: string) => Promise<void>;
+  onSendToPlex: (cloudinaryFolder: string) => Promise<void>;
   selectedContent: any[];
 }
+
+const getCloudinaryFolder = () => {
+  return `staleflix/${format(new Date(), 'yyyy-MM')}`;
+};
 
 export function NewsletterPersonalization({
   personalizedMessage,
@@ -30,7 +35,8 @@ export function NewsletterPersonalization({
     setIsSending(true);
     setSendResult(null);
     try {
-      await onSendToListmonk();
+      const cloudinaryFolder = getCloudinaryFolder();
+      await onSendToListmonk(cloudinaryFolder);
       setSendResult({ success: true, message: "Newsletter sent to Listmonk successfully!" });
     } catch (error) {
       setSendResult({ success: false, message: "Failed to send newsletter to Listmonk. Please try again." });
@@ -43,7 +49,8 @@ export function NewsletterPersonalization({
     setIsSending(true);
     setSendResult(null);
     try {
-      await onSendToPlex();
+      const cloudinaryFolder = getCloudinaryFolder();
+      await onSendToPlex(cloudinaryFolder);
       setSendResult({ success: true, message: "Content sent to Plex collections successfully!" });
     } catch (error) {
       setSendResult({ success: false, message: "Failed to send content to Plex collections. Please try again." });
@@ -54,39 +61,48 @@ export function NewsletterPersonalization({
 
   return (
     <div className="newsletter-personalization">
-      <h2>Personalize Your Newsletter</h2>
-      <ReactQuill
-        value={personalizedMessage}
-        onChange={setPersonalizedMessage}
-        placeholder="Enter your personalized message for the newsletter..."
-        modules={{
-          toolbar: [
-            [{ 'header': [1, 2, 3, false] }],
-            ['bold', 'italic', 'underline', 'strike'],
-            [{'list': 'ordered'}, {'list': 'bullet'}],
-            ['link', 'image'],
-            ['clean']
-          ],
-        }}
-      />
-      <div className="button-group mt-3">
-        <button onClick={onBack} className="btn btn-secondary me-2">Back</button>
-        <button onClick={onPreview} className="btn btn-primary me-2">Preview Newsletter</button>
-        <button onClick={onGenerate} className="btn btn-success me-2">Generate Newsletter</button>
-        <button 
-          onClick={handleSendToListmonk} 
-          className="btn btn-info me-2"
-          disabled={isSending}
-        >
-          {isSending ? 'Sending...' : 'Send to Listmonk'}
-        </button>
-        <button 
-          onClick={handleSendToPlex} 
-          className="btn btn-warning"
-          disabled={isSending || selectedContent.length === 0}
-        >
-          {isSending ? 'Sending...' : 'Send to Plex'}
-        </button>
+      <h2 className="staleflix-header mb-4">Personalize Your Newsletter</h2>
+      <div className="mb-4">
+        <ReactQuill
+          value={personalizedMessage}
+          onChange={setPersonalizedMessage}
+          placeholder="Enter your personalized message for the newsletter..."
+          modules={{
+            toolbar: [
+              [{ 'header': [1, 2, 3, false] }],
+              ['bold', 'italic', 'underline', 'strike'],
+              [{'list': 'ordered'}, {'list': 'bullet'}],
+              ['link', 'image'],
+              ['clean']
+            ],
+          }}
+          className="bg-white"
+        />
+      </div>
+      <div className="button-group mt-3 d-flex justify-content-between align-items-center">
+        <div>
+          <button onClick={onBack} className="btn btn-secondary">Back</button>
+        </div>
+        <div className="d-flex gap-2">
+          <button onClick={onPreview} className="btn btn-primary">Preview Newsletter</button>
+          <button onClick={onGenerate} className="btn btn-success">Generate Newsletter</button>
+        </div>
+        <div className="d-flex gap-2">
+          <button 
+            onClick={handleSendToListmonk} 
+            className="btn btn-info"
+            disabled={isSending}
+          >
+            {isSending ? 'Sending...' : 'Send to Listmonk'}
+          </button>
+          <button 
+            onClick={handleSendToPlex} 
+            className="btn btn-warning"
+            disabled={isSending || selectedContent.length === 0}
+          >
+            {isSending ? 'Sending...' : 'Send to Plex'}
+          </button>
+        </div>
       </div>
       {sendResult && (
         <div className={`alert ${sendResult.success ? 'alert-success' : 'alert-danger'} mt-3`} role="alert">

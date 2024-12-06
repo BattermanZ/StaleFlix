@@ -146,4 +146,3 @@ export const generateNewsletter = (personalizedMessage: string, selectedContent:
   const html = generateHTML(personalizedMessage, selectedContent);
   return juice(html);
 };
-

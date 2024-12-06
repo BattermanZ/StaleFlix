@@ -11,6 +11,8 @@ import cloudinary
 import cloudinary.uploader
 from requests.auth import HTTPBasicAuth
 from plexapi.server import PlexServer
+from io import BytesIO
+from PIL import Image
 
 def get_current_month_year():
     current_date = datetime.now()
@@ -271,6 +273,38 @@ def load_cache():
             return json.load(f)
     return None
 
+def process_image(image_data, max_width=600, initial_quality=85, min_quality=60, target_size=250*1024):
+    img = Image.open(BytesIO(image_data))
+    
+    # Convert to RGB if the image is in RGBA mode
+    if img.mode == 'RGBA':
+        img = img.convert('RGB')
+    
+    # Resize the image if it's wider than max_width
+    if img.width > max_width:
+        ratio = max_width / img.width
+        new_height = int(img.height * ratio)
+        img = img.resize((max_width, new_height), Image.LANCZOS)
+    
+    # Start with the initial quality
+    quality = initial_quality
+    
+    while quality >= min_quality:
+        output = BytesIO()
+        img.save(output, format='JPEG', quality=quality, optimize=True, progressive=True)
+        size = output.tell()
+        
+        if size <= target_size:
+            output.seek(0)
+            return output
+        
+        # Reduce quality and try again
+        quality -= 5
+    
+    # If we couldn't get it under target_size, return the smallest version
+    output.seek(0)
+    return output
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -314,16 +348,28 @@ def upload_to_cloudinary():
             return jsonify({"error": "No content selected"}), 400
 
         updated_content = []
+        current_date = datetime.now()
+        folder_name = f"staleflix/{current_date.strftime('%Y-%m')}"
+
         for item in selected_content:
             try:
                 response = requests.get(item['poster_url'])
                 response.raise_for_status()
-                result = cloudinary.uploader.upload(response.content)
+                
+                # Process the image
+                processed_image = process_image(response.content)
+                
+                result = cloudinary.uploader.upload(
+                    processed_image,
+                    folder=folder_name,
+                    public_id=f"{item['title'].replace(' ', '_')}_{item['plex_id']}",
+                    format='jpg'  # Ensure JPEG format
+                )
                 item['poster_url'] = result['secure_url']
                 updated_content.append(item)
-                logging.info(f"Successfully uploaded image for {item['title']} to Cloudinary")
+                logging.info(f"Successfully uploaded processed image for {item['title']} to Cloudinary in folder {folder_name}")
             except Exception as e:
-                logging.error(f"Error uploading image for {item['title']} to Cloudinary: {str(e)}")
+                logging.error(f"Error processing and uploading image for {item['title']} to Cloudinary: {str(e)}")
                 # If upload fails, keep the original Plex URL
                 updated_content.append(item)
 
@@ -457,3 +503,4 @@ logging.basicConfig(
 
 if __name__ == '__main__':
     app.run(debug=True, port=9999, host='0.0.0.0')
+
