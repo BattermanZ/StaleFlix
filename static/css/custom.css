@@ -1,11 +1,18 @@
 :root {
-  --primary-color: #3498db;
-  --secondary-color: #2ecc71;
-  --background-color: #f0f3f5;
-  --text-color: #34495e;
-  --header-color: #2c3e50;
-  --movie-color: #95a5a6;
-  --show-color: #3498db;
+  --primary-color: #E5A00D;  /* Golden yellow from the newsletter */
+  --secondary-color: #4ec9b0;  /* TypeScript green for secondary elements */
+  --background-color: #f4f4f4;  /* Light gray background from the newsletter */
+  --text-color: #282a2d;  /* Dark gray text color from the newsletter */
+  --header-color: #282a2d;  /* Dark gray for headers */
+  --movie-color: #ce9178;  /* TypeScript orange for movies */
+  --show-color: #3178c6;  /* TypeScript blue for TV shows */
+  --alert-info-bg: #e0e0e0;  /* Light gray for info alerts */
+  --alert-warning-bg: #fff3cd;  /* Light yellow for warning alerts */
+  --alert-success-bg: #d4edda;  /* Light green for success alerts */
+  --alert-danger-bg: #f8d7da;  /* Light red for danger alerts */
+  --table-header-bg: #E5A00D;  /* Golden yellow for table headers */
+  --table-row-hover: #f8f9fa;  /* Very light gray for table row hover */
+  --button-hover: #c08c0b;  /* Darker shade of primary color for button hover */
 }
 
 body {
@@ -33,10 +40,11 @@ body {
   transition: background-color 0.3s ease;
   display: block;
   margin: 0 auto 2rem;
+  color: #ffffff;
 }
 
 .staleflix-button:hover {
-  background-color: #2980b9;
+  background-color: var(--button-hover);
 }
 
 .staleflix-submit-button {
@@ -45,14 +53,15 @@ body {
   transition: background-color 0.3s ease;
   display: block;
   margin: 20px auto 0;
+  color: #ffffff;
 }
 
 .staleflix-submit-button:hover {
-  background-color: #27ae60;
+  background-color: #3da890;  /* Darker shade of secondary color */
 }
 
 .staleflix-table {
-  background-color: white;
+  background-color: #ffffff;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -60,13 +69,13 @@ body {
 }
 
 .staleflix-table th {
-  background-color: var(--primary-color);
-  color: white;
+  background-color: var(--table-header-bg);
+  color: #ffffff;
   cursor: pointer;
 }
 
 .staleflix-table th:hover {
-  background-color: #2980b9;
+  background-color: var(--button-hover);
 }
 
 .staleflix-table tr:nth-child(even) {
@@ -74,7 +83,7 @@ body {
 }
 
 .staleflix-table tr:hover {
-  background-color: #e9ecef;
+  background-color: var(--table-row-hover);
 }
 
 .badge {
@@ -84,10 +93,12 @@ body {
 
 .badge.bg-secondary {
   background-color: var(--movie-color) !important;
+  color: #ffffff;
 }
 
 .badge.bg-primary {
   background-color: var(--show-color) !important;
+  color: #ffffff;
 }
 
 .requester-tag {
@@ -111,6 +122,30 @@ body {
   margin-bottom: 1rem;
 }
 
+.alert-info {
+  background-color: var(--alert-info-bg);
+  border-color: var(--primary-color);
+  color: var(--text-color);
+}
+
+.alert-warning {
+  background-color: var(--alert-warning-bg);
+  border-color: #ffeeba;
+  color: #856404;
+}
+
+.alert-success {
+  background-color: var(--alert-success-bg);
+  border-color: #c3e6cb;
+  color: #155724;
+}
+
+.alert-danger {
+  background-color: var(--alert-danger-bg);
+  border-color: #f5c6cb;
+  color: #721c24;
+}
+
 .landing-page {
   text-align: center;
   padding: 4rem 1rem;
@@ -119,11 +154,47 @@ body {
 .landing-page h1 {
   font-size: 3rem;
   margin-bottom: 1rem;
+  color: var(--header-color);
 }
 
 .landing-page p {
   font-size: 1.2rem;
   margin-bottom: 2rem;
+}
+
+/* Bootstrap overrides */
+.btn-primary {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background-color: var(--button-hover);
+  border-color: var(--button-hover);
+}
+
+.btn-secondary {
+  background-color: var(--secondary-color);
+  border-color: var(--secondary-color);
+  color: #ffffff;
+}
+
+.btn-secondary:hover {
+  background-color: #3da890;
+  border-color: #3da890;
+}
+
+.form-control {
+  background-color: #ffffff;
+  border-color: #ced4da;
+  color: var(--text-color);
+}
+
+.form-control:focus {
+  background-color: #ffffff;
+  border-color: var(--primary-color);
+  color: var(--text-color);
 }
 
 @media (max-width: 768px) {
@@ -147,3 +218,4 @@ body {
     font-size: 1rem;
   }
 }
+
