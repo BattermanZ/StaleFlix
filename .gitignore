@@ -26,3 +26,4 @@ staleflix.log
 *.swp
 *.swo
 .DS_Store
+stale_content_cache.json

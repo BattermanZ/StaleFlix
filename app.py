@@ -22,7 +22,7 @@ app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
 # Load environment variables
-load_dotenv()
+load_dotenv(override=True)   # ← now .env always wins
 
 PLEX_URL = os.getenv('PLEX_URL')
 PLEX_TOKEN = os.getenv('PLEX_TOKEN')
