@@ -1,0 +1,12 @@
+services:
+  staleflix:
+    image: staleflix:v101.0.0
+    container_name: staleflix
+    ports:
+      - "9999:9999"
+    volumes:
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    environment:
+      TZ: Etc/UTC
+    restart: unless-stopped

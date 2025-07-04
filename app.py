@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 import logging
 from flask import Flask, render_template, request, jsonify, send_from_directory
 import os
