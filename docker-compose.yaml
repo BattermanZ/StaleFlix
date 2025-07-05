@@ -1,6 +1,6 @@
 services:
   staleflix:
-    image: staleflix:v101.0.0
+    image: battermanz/staleflix:latest
     container_name: staleflix
     ports:
       - "9999:9999"

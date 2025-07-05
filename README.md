@@ -4,8 +4,23 @@ StaleFlix is a self‑hosted web application that helps you locate and act on **
 
 * Review the items in a sortable table
 * Upload resized poster art to Cloudinary (for lighter emails)
-* Generate an inlined HTML newsletter with custom intro and dispatch it via Listmonk
+* Generate an inlined HTML newsletter and dispatch it via Listmonk
 * Tag the selected titles in dedicated Plex collections for subsequent clean‑up
+
+**Disclaimer:** This is an early-stage project developed entirely with the assistance of generative AI; functionality and stability is probably pretty wonky. As is, this app does not delete any media so your library should be safe.
+
+---
+
+## Required companion applications and services
+
+The following external applications and services are required to run StaleFlix:
+
+* **Plex Media Server**: for your media library and playback statistics
+* **Overseerr**: to retrieve requester information
+* **Radarr**: to fetch movie file sizes
+* **Sonarr**: to fetch TV show file sizes
+* **Cloudinary**: for hosting  poster images
+* **Listmonk**: for generating and dispatching newsletters
 
 ---
 
@@ -21,7 +36,7 @@ StaleFlix is a self‑hosted web application that helps you locate and act on **
 
 ## Configuration
 
-Copy the sample file and populate your secrets:
+Copy the sample file at the root of your project folder and populate your secrets:
 
 ```bash
 cp .env.example .env
@@ -40,18 +55,50 @@ Key variables (see the template for the full list):
 
 ---
 
+## Environment variables reference
+
+| Variable            | Description                                  | Default |
+| ------------------- | -------------------------------------------- | ------- |
+| `PLEX_URL`          | URL of your Plex server                      | —       |
+| `PLEX_TOKEN`        | Token for Plex API authentication            | —       |
+| `OVERSEERR_API_URL` | Base URL for Overseerr API                   | —       |
+| `OVERSEERR_API_KEY` | API key for Overseerr                        | —       |
+| `RADARR_API_URL`    | Base URL for Radarr API                      | —       |
+| `RADARR_API_KEY`    | API key for Radarr                           | —       |
+| `SONARR_API_URL`    | Base URL for Sonarr API                      | —       |
+| `SONARR_API_KEY`    | API key for Sonarr                           | —       |
+| `CLOUDINARY_*`      | Credentials for Cloudinary poster uploads    | —       |
+| `LISTMONK_*`        | Credentials for Listmonk newsletter delivery | —       |
+| `STALE_MONTHS`      | Age threshold in months                      | `6`     |
+
+---
+
+---
+
 ## Running with Docker
 
-A multi‑stage `Dockerfile` is provided. Build and run:
+An official image is available on Docker Hub and can be deployed with the provided Docker Compose file ([docker-compose.yml](https://github.com/BattermanZ/StaleFlix/blob/main/docker-compose.yml)):
 
 ```bash
-docker build -t staleflix:latest .
-docker run -d --name staleflix --env-file .env -p 9999:9999 staleflix:latest
+docker compose up -d
 ```
 
-The container exposes the Flask app on **port 9999**.
+This command will pull the `battermanz/staleflix:latest` image (or any version you specify in `docker-compose.yml`) and launch the service on port 9999. To run a specific tag, adjust the image field in `docker-compose.yml` or override it:
 
-([Dockerfile](https://github.com/BattermanZ/StaleFlix/blob/main/Dockerfile))
+```bash
+docker compose pull
+daocker compose up -d
+```
+
+Alternatively, you may run the container directly:
+
+```bash
+docker run -d --name staleflix \
+  -e TZ=Etc/UTC \
+  --env-file .env:ro \
+  -p 9999:9999 \
+  battermanz/staleflix:latest
+```
 
 ---
 
