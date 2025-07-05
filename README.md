@@ -53,25 +53,7 @@ Key variables (see the template for the full list):
 
 ([.env.example](https://github.com/BattermanZ/StaleFlix/blob/main/.env.example))
 
----
-
-## Environment variables reference
-
-| Variable            | Description                                  | Default |
-| ------------------- | -------------------------------------------- | ------- |
-| `PLEX_URL`          | URL of your Plex server                      | —       |
-| `PLEX_TOKEN`        | Token for Plex API authentication            | —       |
-| `OVERSEERR_API_URL` | Base URL for Overseerr API                   | —       |
-| `OVERSEERR_API_KEY` | API key for Overseerr                        | —       |
-| `RADARR_API_URL`    | Base URL for Radarr API                      | —       |
-| `RADARR_API_KEY`    | API key for Radarr                           | —       |
-| `SONARR_API_URL`    | Base URL for Sonarr API                      | —       |
-| `SONARR_API_KEY`    | API key for Sonarr                           | —       |
-| `CLOUDINARY_*`      | Credentials for Cloudinary poster uploads    | —       |
-| `LISTMONK_*`        | Credentials for Listmonk newsletter delivery | —       |
-| `STALE_MONTHS`      | Age threshold in months                      | `6`     |
-
----
+**For info**: The app is not very efficient when scanning, it takes it 3-4 minutes for a 4TB library on my N100. So be patient.
 
 ---
 
